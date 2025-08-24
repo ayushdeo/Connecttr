@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { API_BASE } from "../config";
+import { API } from "../config";
 const StartNewCampaign = ({ onNext }) => {
   const [website, setWebsite] = useState("");
   const [loading, setLoading] = useState(false);
@@ -8,7 +8,7 @@ const StartNewCampaign = ({ onNext }) => {
   const handleProceed = async () => {
     setErr(""); setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/campaigns/analyze`, {
+      const res = await fetch(`${API}/campaigns/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ website: website || null })
