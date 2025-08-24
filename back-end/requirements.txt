@@ -1,8 +1,10 @@
 fastapi
 uvicorn[standard]
-pydantic>=2
-python-dotenv
+gunicorn
 requests
-tenacity
 beautifulsoup4
+lxml
 readability-lxml
+lxml-html-clean
+python-dotenv
+pydantic
