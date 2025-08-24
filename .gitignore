@@ -1,0 +1,15 @@
+front-end/node_modules
+front-end/build
+front-end/.env*
+back-end/.venv
+back-end/venv
+__pycache__/
+*.pyc
+back-end/apiKey.env
+back-end/.env
+back-end/app/data/*.json
+back-end/app/data/*.csv
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
