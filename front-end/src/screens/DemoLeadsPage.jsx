@@ -1,7 +1,6 @@
 // front-end/src/pages/DemoLeadsPage.jsx
 import React, { useEffect, useState } from "react";
-
-const API = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+ import { API } from "../config";   //
 
 export default function DemoLeadsPage() {
   const [leads, setLeads] = useState([]);

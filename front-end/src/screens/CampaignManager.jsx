@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import StartNewCampaign from "./StartNewCampaign";
 import EnterKeywords from "./EnterKeywords";
 import LoadingScreen from "./LoadingScreen";
+import { API } from "../config";   // adjust the relative path as needed
 
-  const API = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
   const CampaignManager = ({ onNavigate = () => {} }) => {
   const [stage, setStage] = useState("list"); // list | collect | fallback | review | view

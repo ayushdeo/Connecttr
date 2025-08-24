@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-const API = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+ import { API } from "../config";   //
 
 const EnterKeywords = ({ website, onBack, onReady }) => {
   const [description, setDescription] = useState("");
