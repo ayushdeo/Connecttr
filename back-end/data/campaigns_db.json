@@ -1,0 +1,273 @@
+{
+  "campaigns": [
+    {
+      "id": "16862fb4d419",
+      "name": "AI Strategy & Consulting",
+      "website": "https://www.stenixai.com/",
+      "brief": {
+        "services": [
+          "AI Strategy & Consulting",
+          "Process Automation",
+          "Data Analytics and Predictive Modeling",
+          "Custom AI Solutions",
+          "Cloud AI Integration",
+          "AI Security & Compliance"
+        ],
+        "icp_summary": "Mid to large enterprises and businesses seeking to integrate AI to optimize operations, automate workflows, leverage data insights, and ensure secure, compliant AI adoption for competitive advantage.",
+        "lead_signals": [
+          "Companies announcing digital transformation or AI initiatives",
+          "Job postings for AI, data science, automation roles",
+          "Press releases about AI adoption or innovation",
+          "Cloud infrastructure upgrades or migrations",
+          "Business process improvement projects",
+          "Interest in AI compliance and security frameworks"
+        ],
+        "search_queries": [
+          "AI strategy consulting services for enterprises",
+          "process automation solutions for business",
+          "predictive analytics providers",
+          "custom AI development companies",
+          "cloud AI integration services",
+          "AI security and compliance consulting"
+        ],
+        "exclude_terms": [
+          "job posting",
+          "supplier directory",
+          "freelance",
+          "generic tips",
+          "how to",
+          "tutorial",
+          "open source",
+          "forum",
+          "template",
+          "case study download"
+        ],
+        "exclude_domains": [
+          "indeed.com",
+          "glassdoor.com",
+          "upwork.com",
+          "github.com",
+          "reddit.com",
+          "quora.com",
+          "slideshare.net"
+        ],
+        "outreach_angles": [
+          "Highlight how Stenix AI’s tailored AI strategy can maximize ROI and streamline operations",
+          "Emphasize process automation to reduce manual effort and boost productivity",
+          "Showcase predictive analytics to turn data into actionable business insights",
+          "Offer custom AI solutions designed for unique business challenges",
+          "Stress secure and compliant AI integration aligned with industry best practices",
+          "Position as a trusted partner for cloud AI integration enabling scalable growth"
+        ],
+        "quality": 0.95
+      },
+      "created_at": 1755734271.552584
+    },
+    {
+      "id": "2406ff248d45",
+      "name": "Color palette generation tool",
+      "website": "https://coolors.co/",
+      "brief": {
+        "services": [
+          "Color palette generation tool",
+          "Free and Pro subscription plans for advanced color palette features",
+          "Unlimited palette saving and organization",
+          "Advanced export options including PDF with shades, hues, and color blindness simulation",
+          "Palette Visualizer tool for checking colors on real designs",
+          "Pro Profile page to showcase palettes, projects, and collections",
+          "Ad-free user experience",
+          "Access to over 10 million color schemes"
+        ],
+        "icp_summary": "Graphic designers, UI/UX designers, branding professionals, creative agencies, and digital artists who need efficient, advanced tools for creating, saving, organizing, and exporting color palettes for their projects.",
+        "lead_signals": [
+          "Job titles: graphic designer, UI designer, UX designer, brand manager, creative director, digital artist",
+          "Companies in design, marketing, advertising, branding, and digital product development",
+          "Social media posts or forum discussions about color palette tools or design workflows",
+          "Searches or content about color theory, color palette generation, or design inspiration",
+          "Subscriptions or interest in design software and creative tools",
+          "Mentions of needing advanced color export options or palette organization"
+        ],
+        "search_queries": [
+          "best color palette tools for designers",
+          "how to create color palettes for branding",
+          "color palette generator with export options",
+          "tools for UI/UX color scheme design",
+          "advanced color palette software for creatives",
+          "color theory tools for designers",
+          "design software with palette organization features"
+        ],
+        "exclude_terms": [
+          "job posting",
+          "supplier portfolio",
+          "generic design tips",
+          "free templates",
+          "download free",
+          "tutorial",
+          "how to",
+          "course",
+          "internship",
+          "resume",
+          "sample",
+          "example",
+          "open source"
+        ],
+        "exclude_domains": [
+          "job boards",
+          "freelance marketplaces",
+          "generic blog sites without design focus",
+          "educational course platforms"
+        ],
+        "outreach_angles": [
+          "Highlight how Coolors Pro removes limitations on palette saving and project organization to streamline professional workflows",
+          "Emphasize advanced export features that support accessibility (color blindness simulation) and high-quality deliverables",
+          "Showcase the Pro Profile as a way for designers to present their work and build their personal brand",
+          "Position Coolors as a cost-effective, indie-developed tool trusted by millions and top companies",
+          "Offer a free trial or demo to experience the premium features and improved productivity",
+          "Focus on the ease of use combined with powerful features that save time in color selection and palette management"
+        ],
+        "quality": 0.95
+      },
+      "created_at": 1755734336.8157997
+    },
+    {
+      "id": "f54fae2912b3",
+      "name": "Rental photo studio spaces in New York and Los Angeles",
+      "website": "https://www.fdphotostudio.com/",
+      "brief": {
+        "services": [
+          "Rental photo studio spaces in New York and Los Angeles",
+          "Standard lighting and grip equipment included with rental",
+          "Additional/premium equipment and special requests available",
+          "Discounted hourly packages and low hourly rates",
+          "Online calendar and fast booking system",
+          "Hosting photography events and workshops",
+          "Unique sets and interiors for photoshoots",
+          "100% privacy guaranteed during studio rental"
+        ],
+        "icp_summary": "Professional photographers, videographers, content creators, and creatives in New York and Los Angeles seeking affordable, fully equipped, private photo studio rentals with flexible booking and unique sets for commercial, editorial, fashion, and creative shoots.",
+        "lead_signals": [
+          "searching for 'photo studio rental near me'",
+          "looking for affordable photography studio spaces",
+          "booking photography workshops or events",
+          "inquiring about studio equipment rental",
+          "photographers planning commercial or fashion shoots",
+          "creative agencies seeking studio space",
+          "photographers needing private, secure studio environments",
+          "searching for discounted or package deals on studio rentals"
+        ],
+        "search_queries": [
+          "photo studio rental New York hourly",
+          "affordable photo studio Los Angeles",
+          "rent photography studio with lighting equipment",
+          "private photo studio space near me",
+          "discounted photo studio packages NYC",
+          "photography workshops Los Angeles 2025",
+          "studio rental for fashion photoshoot NYC",
+          "book photo studio online Los Angeles"
+        ],
+        "exclude_terms": [
+          "job posting",
+          "supplier portfolio",
+          "photography tips",
+          "camera reviews",
+          "generic photography advice",
+          "free stock photos",
+          "photography tutorials",
+          "photography blog articles"
+        ],
+        "exclude_domains": [
+          "indeed.com",
+          "glassdoor.com",
+          "linkedin.com/jobs",
+          "behance.net",
+          "500px.com",
+          "flickr.com",
+          "photographyforums.com"
+        ],
+        "outreach_angles": [
+          "Highlight cost savings with hourly rates 4-5 times lower than competitors",
+          "Emphasize included standard lighting and grip equipment with every rental",
+          "Promote 100% privacy and secure, professional studio environments",
+          "Showcase unique sets and interiors that inspire creative shoots",
+          "Leverage positive reviews from 58,000+ happy photographers",
+          "Advertise easy online booking and flexible scheduling",
+          "Invite prospects to upcoming photography events and workshops",
+          "Offer discounted hourly packages for frequent renters"
+        ],
+        "quality": 0.95
+      },
+      "created_at": 1756000060.2161136
+    },
+    {
+      "id": "39bc3d435cfc",
+      "name": "Creative studio rental for photo, video, co-working, and cultural events",
+      "website": "https://www.parkandlex.com/studios?gad_source=1&gad_campaignid=22903863967&gbraid=0AAAAA-yyFFoD68-Bd91krdEUFeh1iTrII&gclid=EAIaIQobChMIqsTvkrOijwMVH5juAR1n9hSvEAAYBCAAEgLiePD_BwE",
+      "brief": {
+        "services": [
+          "Creative studio rental for photo, video, co-working, and cultural events",
+          "Content creation space with photography essentials and lighting equipment",
+          "Event hosting for intimate events, panels, pop-ups, and product launches",
+          "Optional on-site photo tech or assistant and additional lighting rentals",
+          "Creative co-working sessions and artist meetups",
+          "Support for brand photoshoots, commercial campaigns, podcast and video content creation"
+        ],
+        "icp_summary": "Creative professionals, photographers, videographers, content creators, small brands, agencies, event organizers, and artists in the Los Angeles area seeking versatile, well-equipped studio space for shoots, events, and co-working in a vibrant arts district environment.",
+        "lead_signals": [
+          "Looking for photo or video studio rental",
+          "Booking creative space for brand photoshoot or commercial campaign",
+          "Planning intimate events, panels, or cultural gatherings",
+          "Searching for co-working or creative collaboration spaces",
+          "Requesting photography or video production equipment rental",
+          "Organizing pop-up retail or product launch events",
+          "Seeking studio with natural light and cyclorama wall",
+          "In need of on-site photo tech or lighting support"
+        ],
+        "search_queries": [
+          "photo studio rental downtown LA",
+          "video production studio arts district LA",
+          "creative co-working space Los Angeles",
+          "event space rental for small gatherings LA",
+          "studio with cyclorama wall for photoshoot",
+          "rent photography lighting equipment LA",
+          "pop-up retail space rental LA arts district",
+          "podcast and video content studio LA"
+        ],
+        "exclude_terms": [
+          "job posting",
+          "supplier portfolio",
+          "how to",
+          "tips",
+          "tutorial",
+          "free",
+          "template",
+          "sample",
+          "resume",
+          "internship",
+          "course",
+          "training"
+        ],
+        "exclude_domains": [
+          "indeed.com",
+          "glassdoor.com",
+          "linkedin.com/jobs",
+          "monster.com",
+          "upwork.com",
+          "fiverr.com",
+          "coursera.org",
+          "udemy.com"
+        ],
+        "outreach_angles": [
+          "Highlight affordable hourly rates starting at $45 with versatile studio features",
+          "Emphasize natural light and 12' cyclorama wall ideal for professional shoots",
+          "Promote multi-functional space suitable for creative projects, events, and co-working",
+          "Offer optional add-ons like on-site photo tech and additional lighting rentals",
+          "Showcase past successful events and productions to build credibility",
+          "Stress convenient location in Downtown LA Arts District with ADA accessibility",
+          "Mention flexible booking and cancellation policies to reduce friction"
+        ],
+        "quality": 0.95
+      },
+      "created_at": 1756002560.5541265
+    }
+  ]
+}
