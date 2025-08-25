@@ -9,22 +9,37 @@ from app.api.email_hub import router as emailhub_router
 
 app = FastAPI(title="Connecttr Backend")
 
-# Allow your deployed frontend + local dev
+# --- CORS ---
+# Keep your frontend domains here; add via env FRONTEND_ORIGIN if you change it later.
 FRONTEND_ORIGINS = [
     "http://localhost:3000",
     "https://connecttr-front-end.onrender.com",
-    os.getenv("FRONTEND_ORIGIN", "").rstrip("/"),   # optional extra
+    os.getenv("FRONTEND_ORIGIN", "").rstrip("/"),
 ]
 ALLOWED_ORIGINS = [o for o in FRONTEND_ORIGINS if o]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,        # ok because we’re not using "*"
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- Routers ---
 app.include_router(campaigns_router)
 app.include_router(campaign_store_router)
 app.include_router(emailhub_router)
+
+# --- Health (handy for quick tests from the browser console) ---
+@app.get("/")
+def root():
+    return {"ok": True, "service": "connecttr-backend"}
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+@app.get("/campaigns/health")
+def campaigns_health():
+    return {"ok": True, "scope": "campaigns"}
