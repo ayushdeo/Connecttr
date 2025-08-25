@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request 
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from app.services.web_extractor import extract_main_text
@@ -6,9 +6,18 @@ from app.services.company_analyzer import analyze_company_brief
 from app.api.campaign_store import get_campaign_by_id  # adjust import to your store file
 from app.services.lead_discovery import discover_from_brief
 from app.services.contact_enricher import enrich_leads_with_email
-import requests, os, time
+import os, time, requests, traceback
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+_PORT = os.getenv("PORT")                      # Render injects this
+_emailhub_env = os.getenv("EMAILHUB_URL")      # optional override
+if _emailhub_env:
+    EMAILHUB_URL = _emailhub_env.rstrip("/")
+elif _PORT:
+    EMAILHUB_URL = f"http://127.0.0.1:{_PORT}"
+else:
+    EMAILHUB_URL = "http://127.0.0.1:8000"
 EMAILHUB_URL = os.getenv("EMAILHUB_URL", "http://localhost:8000")
 
 @router.post("/{campaign_id}/discover")
@@ -16,24 +25,42 @@ def campaign_discover(campaign_id: str, dry_run: bool = False):
     camp = get_campaign_by_id(campaign_id)
     if not camp:
         raise HTTPException(404, "Campaign not found")
+
     brief = camp.get("brief") or {}
-    # pass client website into brief so we can auto-exclude it
     if camp.get("website"):
         brief["client_website"] = camp["website"]
 
     t0 = time.time()
-    leads = discover_from_brief(campaign_id, brief, per_query=6)
+    try:
+        leads = discover_from_brief(campaign_id, brief, per_query=6)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"lead discovery crashed: {e}")
 
-    # try to get emails for a subset (fast MVP)
-    leads = enrich_leads_with_email(leads, max_to_enrich=20)
+    # optional email enrichment
+    try:
+        leads = enrich_leads_with_email(leads, max_to_enrich=20)
+    except Exception as e:
+        traceback.print_exc()
+
     took = round(time.time() - t0, 2)
 
     if dry_run:
         return {"mode":"preview","count":len(leads),"took_seconds":took,"preview":leads[:5]}
 
-    r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads, timeout=60)
-    r.raise_for_status()
+    try:
+        r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads, timeout=60)
+        r.raise_for_status()
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"import failed: {e}")
+
     return {"mode":"import","imported":len(leads),"took_seconds":took,"preview":leads[:5]}
+
+
+    # r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads, timeout=60)
+    # r.raise_for_status()
+    # return {"mode":"import","imported":len(leads),"took_seconds":took,"preview":leads[:5]}
 
 
 class AnalyzeIn(BaseModel):
