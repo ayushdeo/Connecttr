@@ -40,9 +40,12 @@ async function generateForCampaign(c) {
   setShowLoading(true);
   setLoadingDone(false);
   try {
-    const r = await fetch(`${API}/campaigns/${c.id}/discover`, { method: "POST" });
-    if (!r.ok) throw new Error(await r.text());
-    const data = await r.json();
+   const r = await fetch(`${API}/campaigns/${c.id}/discover`, { method: "POST" });
+    if (!r.ok) {
+     const body = await r.text().catch(() => "");
+     console.error("discover failed", r.status, r.statusText, body);
+     throw new Error(`Discover failed (${r.status})`);    }
+   const data = await r.json().catch(() => ({}));
     console.log("Imported", data.imported, "leads for", c.name);
     // optionally jump to Email Hub after import
     // onNavigate?.("emailhub");
@@ -63,9 +66,14 @@ async function generateForCampaign(c) {
     setShowLoading(true);
     setLoadingDone(false);
     try {
-      const r = await fetch(`${API}/campaigns/${current.id}/discover`, { method: "POST" });
-      const { imported } = await r.json();
-      console.log(`Imported ${imported} leads`);
+const r = await fetch(`${API}/campaigns/${current.id}/discover`, { method: "POST" });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      console.error("discover failed", r.status, r.statusText, body);
+      throw new Error(`Discover failed (${r.status})`);
+    }
+    const { imported } = await r.json().catch(() => ({}));
+    console.log(`Imported ${imported ?? 0} leads`);
 onNavigate?.("emailhub");   // ← switch Shell to the Email Hub tab
 setLoadingDone(true);
     } catch (e) {
