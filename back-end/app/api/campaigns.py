@@ -12,13 +12,14 @@ from fastapi import APIRouter, HTTPException
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 _PORT = os.getenv("PORT")                      # Render injects this
 _emailhub_env = os.getenv("EMAILHUB_URL")      # optional override
+
 if _emailhub_env:
     EMAILHUB_URL = _emailhub_env.rstrip("/")
 elif _PORT:
+    # If running on Render (or similar), localhost port logic might apply for self-calls
     EMAILHUB_URL = f"http://127.0.0.1:{_PORT}"
 else:
     EMAILHUB_URL = "http://127.0.0.1:8000"
-EMAILHUB_URL = os.getenv("EMAILHUB_URL", "http://localhost:8000")
 
 @router.post("/{campaign_id}/discover")
 def campaign_discover(campaign_id: str, dry_run: bool = False):

@@ -30,12 +30,12 @@ const Shell = () => {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":
-        return <DashboardHome />;
+        return <DashboardHome onNavigate={setActivePage} />;
       case "campaigns":
         return <CampaignManager onNavigate={setActivePage} />;
       case "email":
         return <EmailEditor />;
-              case "emailhub":
+      case "emailhub":
         return <EmailHub />;
       case "analytics":
         return <AnalyticsDashboard />;
@@ -46,69 +46,67 @@ const Shell = () => {
     }
   };
 
-if (showLanding) {
-  return (
-    <div className="min-h-screen bg-[#0257AC] flex items-center justify-center font-sans overflow-hidden">
-      <div className="text-center transform -translate-y-32 w-full">
-        {/* Welcome to */}
-        <div
-          className={`text-[3.5rem] md:text-[6rem] font-semibold text-white tracking-wide transition-opacity transform duration-1000 ease-in-out ${
-            phase > 0 ? "opacity-0 scale-95" : "opacity-100 scale-100"
-          }`}
-        >
-          Welcome to
-        </div>
+  if (showLanding) {
+    return (
+      <div className="min-h-screen bg-[#0257AC] flex items-center justify-center font-sans overflow-hidden">
+        <div className="text-center transform -translate-y-32 w-full">
+          {/* Welcome to */}
+          <div
+            className={`text-[3.5rem] md:text-[6rem] font-semibold text-white tracking-wide transition-opacity transform duration-1000 ease-in-out ${phase > 0 ? "opacity-0 scale-95" : "opacity-100 scale-100"
+              }`}
+          >
+            Welcome to
+          </div>
 
-        {/* Nexus */}
-        <div
-          className={`text-[5rem] md:text-[8rem] font-extrabold text-white transition-transform duration-700 ${
-            phase > 0 ? "-translate-y-6" : ""
-          }`}
-          style={{ fontFamily: "system-ui, sans-serif" }}
-        >
-          {BRAND}
-        </div>
+          {/* Nexus */}
+          <div
+            className={`text-[5rem] md:text-[8rem] font-extrabold text-white transition-transform duration-700 ${phase > 0 ? "-translate-y-6" : ""
+              }`}
+            style={{ fontFamily: "system-ui, sans-serif" }}
+          >
+            {BRAND}
+          </div>
 
-        {/* Tagline with Typing Animation */}
-{phase >= 1 && (
-  <div
-    className="mt-6 text-2xl md:text-3xl text-[#E0F2FF] tracking-wide mx-auto w-fit"
-    style={{ animation: "fadein 0.3s ease-in-out 1s forwards" }}
-  >
-    <div className="relative inline-block">
-      <div
-        className="overflow-hidden whitespace-nowrap"
-        style={{
-          width: "0ch",
-          animation: "typing 2.5s steps(23, end) 1s forwards",
-          fontFamily: "system-ui, sans-serif",
-          color: "#E0F2FF",
-        }}
-      >
-        From Intent to Inbox.
-      </div>
+          {/* Tagline with Typing Animation */}
+          {phase >= 1 && (
+            <div
+              className="mt-6 text-2xl md:text-3xl text-[#E0F2FF] tracking-wide mx-auto w-fit"
+              style={{ animation: "fadein 0.3s ease-in-out 1s forwards" }}
+            >
+              <div className="relative inline-block">
+                <div
+                  className="overflow-hidden whitespace-nowrap"
+                  style={{
+                    width: "0ch",
+                    animation: "typing 2.5s steps(23, end) 1s forwards",
+                    fontFamily: "system-ui, sans-serif",
+                    color: "#E0F2FF",
+                  }}
+                >
+                  From Intent to Inbox.
+                </div>
 
-      {/* Blinking cursor */}
-<span
-  className="absolute top-0"
-  style={{
-    animation: "blink 1s step-end infinite",
-    animationDelay: "3.5s",
-    left: "100%",
-    color: "#E0F2FF",
-  }}
->
-  |
-</span>
+                {/* Blinking cursor */}
+                <span
+                  className="absolute top-0"
+                  style={{
+                    animation: "blink 1s step-end infinite",
+                    animationDelay: "3.5s",
+                    left: "100%",
+                    color: "#E0F2FF",
+                  }}
+                >
+                  |
+                </span>
 
-    </div>
-  </div>
-)}
+              </div>
+            </div>
+          )}
 
 
 
-        {/* Inline CSS for typing */}
-            <style>
+          {/* Inline CSS for typing */}
+          <style>
             {`
                 @keyframes typing {
                 from { width: 0ch; }
@@ -126,13 +124,13 @@ if (showLanding) {
                 100% { opacity: 1; }
                 }
             `}
-            </style>
+          </style>
 
 
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 
 
@@ -152,8 +150,8 @@ if (showLanding) {
             <SidebarLink label="Settings" active={activePage === "settings"} onClick={() => setActivePage("settings")} />
           </nav>
         </div>
-                <div className="mt-auto text-xs text-white/60">
-         © {new Date().getFullYear()} {BRAND}        </div>
+        <div className="mt-auto text-xs text-white/60">
+          © {new Date().getFullYear()} {BRAND}        </div>
       </div>
 
       {/* Main Content */}

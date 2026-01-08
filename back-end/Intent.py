@@ -1,5 +1,4 @@
 # app/Intent.py (drop-in)
-import csv
 import os
 import re
 from typing import List, Dict
@@ -8,14 +7,11 @@ from dotenv import load_dotenv
 load_dotenv("apiKey.env")  # loads PERPLEXITY_API_KEY, etc.
 
 from app.services.perplexity_client import score_intent_freeform
+from app.db import get_leads_collection
 
 # =========================
 # Config
 # =========================
-BASE_DIR = os.path.dirname(__file__)
-DEFAULT_IN = os.path.join(BASE_DIR, "data", "cleaned_leads.csv")
-DEFAULT_OUT = os.path.join(BASE_DIR, "classified_leads.csv")
-
 EMAILHUB_URL = os.getenv("EMAILHUB_URL", "http://localhost:8000")
 CAMPAIGN_ID  = os.getenv("CAMPAIGN_ID", "demo")  # set per-campaign
 
@@ -24,21 +20,11 @@ print("KEY_VISIBLE?", bool(os.getenv("PERPLEXITY_API_KEY")))
 # =========================
 # FA: Load Raw Leads
 # =========================
-def load_leads(csv_file: str = DEFAULT_IN) -> List[Dict]:
-    # Try fallback to local file if the "data/" path doesn't exist.
-    candidates = [csv_file, os.path.join(BASE_DIR, "cleaned_leads.csv")]
-    path = next((p for p in candidates if os.path.exists(p)), None)
-    if not path:
-        raise FileNotFoundError(f"cleaned_leads.csv not found in {candidates}")
-    leads = []
-    with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            leads.append({
-                "title": row.get("Name/Title") or "",
-                "url": row.get("Profile URL") or "",
-                "snippet": row.get("Snippet") or "",
-            })
+def load_leads() -> List[Dict]:
+    """Fetch all leads from MongoDB that haven't been fully processed or need re-check."""
+    collection = get_leads_collection()
+    # For now, just load all. In production, you might filter by 'processed': False
+    leads = list(collection.find({}))
     return leads
 
 # =========================
@@ -57,13 +43,16 @@ def clean_text(text: str) -> str:
 def preprocess_leads(leads: List[Dict]) -> List[Dict]:
     processed = []
     for lead in leads:
-        combined = f"{lead['title']} {lead['snippet']}"
-        processed.append({
-            "url": lead["url"],
-            "clean_text": clean_text(combined),
-            "raw_title": lead["title"],
-            "raw_snippet": lead["snippet"],
-        })
+        # Depending on if 'clean_text' is already there, we might re-compute
+        combined = f"{lead.get('title','')} {lead.get('snippet','')}"
+        
+        # We don't want to mutate the dict in place inside the loop if we want to return a new list,
+        # but for MongoDB updates it's easier to modify and then bulk write.
+        # Here we just return the modified list for the next step.
+        lead["clean_text"] = clean_text(combined)
+        lead["raw_title"] = lead.get("title", "")
+        lead["raw_snippet"] = lead.get("snippet", "")
+        processed.append(lead)
     return processed
 
 # =========================
@@ -85,7 +74,8 @@ def extract_features(processed_leads: List[Dict]) -> List[Dict]:
     for lead in processed_leads:
         text = lead["clean_text"]
         feats = {k: any(kw in text for kw in kws) for k, kws in keyword_map.items()}
-        out.append({**lead, **feats})
+        lead.update(feats)
+        out.append(lead)
     return out
 
 # =========================
@@ -153,6 +143,11 @@ EVENT_MED  = 0.50
 def aggregate_scores(lead: Dict, rule_weight: float = W_RULE, perplexity_weight: float = W_LLM):
     r_score = rule_based_score(lead)
     try:
+        if lead.get("perplexity_score", 0.0) > 0:
+             # avoid re-running if already scored, or force re-run?
+             # For now, simplistic: always re-run if script is called manually
+            pass
+        
         p_score = score_intent_freeform(lead["clean_text"])  # returns float in [0,1]
         if p_score is None:
             p_score = 0.05
@@ -175,19 +170,28 @@ def label_intent(score: float) -> str:
         return "Low"
 
 # =========================
-# FG: Output Classified Leads
+# FG: Output Classified Leads (Update MongoDB)
 # =========================
-def write_classified_leads(leads: List[Dict], output_csv: str = DEFAULT_OUT):
-    fieldnames = [
-        "url", "raw_title", "raw_snippet", "clean_text",
-        "mentions_hiring", "mentions_event", "mentions_urgency", "mentions_commercial",
-        "rule_score", "perplexity_score", "final_score", "intent_label", "kind"
-    ]
-    with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for lead in leads:
-            writer.writerow(lead)
+def update_classified_leads(leads: List[Dict]):
+    collection = get_leads_collection()
+    updates = 0
+    for lead in leads:
+        # fields to update
+        update_fields = {
+            "clean_text": lead.get("clean_text"),
+            "mentions_hiring": lead.get("mentions_hiring"),
+            "mentions_event": lead.get("mentions_event"),
+            "mentions_urgency": lead.get("mentions_urgency"),
+            "mentions_commercial": lead.get("mentions_commercial"),
+            "rule_score": lead.get("rule_score"),
+            "perplexity_score": lead.get("perplexity_score"),
+            "final_score": lead.get("final_score"),
+            "intent_label": lead.get("intent_label"),
+            "kind": lead.get("kind"),
+        }
+        collection.update_one({"_id": lead["_id"]}, {"$set": update_fields})
+        updates += 1
+    print(f"Updated {updates} leads in MongoDB.")
 
 # =========================
 # Push Qualified Leads to Email Hub (optional)
@@ -195,42 +199,59 @@ def write_classified_leads(leads: List[Dict], output_csv: str = DEFAULT_OUT):
 import uuid
 import requests
 
-def push_leads_to_emailhub(csv_path: str = DEFAULT_OUT):
-    leads = []
-    with open(csv_path, encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Only send real buyer candidates and rows that already have an email
-            if (row.get("kind") != "event_buyer_candidate") or not row.get("email"):
-                continue
-            try:
-                score_pct = int(float(row.get("final_score", "0")) * 100) if float(row.get("final_score", "0")) <= 1 else int(float(row.get("final_score", "0")))
-            except Exception:
-                score_pct = 0
-            leads.append({
-                "id": uuid.uuid4().hex,
-                "campaign_id": CAMPAIGN_ID,
-                "name": row.get("contact_name") or row.get("raw_title") or "Unknown",
-                "company": row.get("company") or "",
-                "role": row.get("role") or "",
-                "email": row.get("email"),
-                "score": score_pct,
-                "status": "New",
-            })
-    if not leads:
+def push_leads_to_emailhub():
+    collection = get_leads_collection()
+    # Find leads that are event_buyer_candidate AND has email AND not synced?
+    # Logic in old code: "status": "New"
+    
+    # We will fetch leads from MongoDB
+    cursor = collection.find({
+        "kind": "event_buyer_candidate",
+        "email": {"$exists": True, "$ne": ""} # Ensure email exists and not empty
+    })
+    
+    leads_to_push = []
+    for row in cursor:
+        try:
+            fs = float(row.get("final_score", 0))
+            score_pct = int(fs * 100) if fs <= 1 else int(fs)
+        except Exception:
+            score_pct = 0
+        
+        leads_to_push.append({
+            "id": str(row.get("_id")), # Use mongo ID as lead ID or keep uuid? 
+            # If we want to maintain consistency, we should probably generate a UUID for the lead 
+            # at creation time or just use stringified _id. 
+            # For now, let's use a new UUID if 'id' field doesnt exist, else use it.
+            # But the email hub expects 'id'. 
+            "id": row.get("id") or uuid.uuid4().hex,
+            "campaign_id": CAMPAIGN_ID,
+            "name": row.get("contact_name") or row.get("title") or "Unknown",
+            "company": row.get("company") or "",
+            "role": row.get("role") or "",
+            "email": row.get("email"),
+            "score": score_pct,
+            "status": row.get("status", "New"),
+        })
+
+    if not leads_to_push:
         print("[EmailHub] No importable leads (missing email or not buyer candidates).")
         return
 
-    r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads, timeout=30)
+    r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads_to_push, timeout=30)
     r.raise_for_status()
-    print(f"[EmailHub] Imported {len(leads)} leads into Email Hub.")
+    print(f"[EmailHub] Imported {len(leads_to_push)} leads into Email Hub.")
 
 # =========================
 # RUN FULL PIPELINE
 # =========================
 if __name__ == "__main__":
     raw_leads = load_leads()
-    print(f"[FA] Loaded {len(raw_leads)} leads")
+    print(f"[FA] Loaded {len(raw_leads)} leads from MongoDB")
+
+    if not raw_leads:
+        print("No leads to process.")
+        exit(0)
 
     processed_leads = preprocess_leads(raw_leads)
     print(f"[FB] Preprocessed")
@@ -239,6 +260,9 @@ if __name__ == "__main__":
     print(f"[FC] Feature extraction complete")
 
     final_leads: List[Dict] = []
+    
+    # We can batch update or update one by one. In memory calculation first.
+    
     for lead in featured_leads:
         kind = classify_kind(lead)
 
@@ -249,7 +273,6 @@ if __name__ == "__main__":
             else:                           intent_label = "Low"
 
         elif kind == "staffing_job":
-            # Don’t waste LLM calls; keep a small fixed score, distinct label
             r_score, p_score, final_score = 0.10, 0.05, 0.25
             intent_label = "Medium (Staffing/Job)"
 
@@ -261,25 +284,25 @@ if __name__ == "__main__":
             r_score, p_score, final_score = 0.00, 0.00, 0.05
             intent_label = "Low"
 
-        final_leads.append({
-            **lead,
-            "rule_score": r_score,
-            "perplexity_score": p_score,
-            "final_score": final_score,
-            "intent_label": intent_label,
-            "kind": kind,
-        })
+        # Update the dict object
+        lead["rule_score"] = r_score
+        lead["perplexity_score"] = p_score
+        lead["final_score"] = final_score
+        lead["intent_label"] = intent_label
+        lead["kind"] = kind
+        
+        final_leads.append(lead)
 
-    write_classified_leads(final_leads, DEFAULT_OUT)
-    print(f"[FG] Done → {DEFAULT_OUT}")
+    update_classified_leads(final_leads)
+    print(f"[FG] Done updated MongoDB")
 
     # Preview first few rows in console
     for lead in final_leads[:3]:
         print("\n--- Classified Lead ---")
-        print(f"URL      : {lead['url']}")
-        print(f"Score    : {lead['final_score']} ({lead['intent_label']})")
-        print(f"Title    : {lead['raw_title']}")
-        print(f"Snippet  : {lead['raw_snippet']}")
+        print(f"URL      : {lead.get('url')}")
+        print(f"Score    : {lead.get('final_score')} ({lead.get('intent_label')})")
+        print(f"Title    : {lead.get('title')}")
+        print(f"Snippet  : {lead.get('snippet')}")
 
     # Optional: push to Email Hub (will skip rows without email)
-    push_leads_to_emailhub(DEFAULT_OUT)
+    push_leads_to_emailhub()
