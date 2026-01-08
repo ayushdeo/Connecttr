@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Typewriter } from "react-simple-typewriter";
 import { BRAND } from "../brand";
+
 export default function LandingIntro({ onFinish }) {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showTagline, setShowTagline] = useState(false);

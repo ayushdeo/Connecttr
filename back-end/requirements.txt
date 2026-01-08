@@ -10,3 +10,4 @@ tenacity
 python-dotenv
 email-validator
 pydantic
+pymongo

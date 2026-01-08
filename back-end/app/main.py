@@ -31,6 +31,9 @@ app.include_router(campaigns_router)
 app.include_router(campaign_store_router)
 app.include_router(emailhub_router)
 
+from app.api.pipeline import router as pipeline_router
+app.include_router(pipeline_router)
+
 # --- Health (handy for quick tests from the browser console) ---
 @app.get("/")
 def root():

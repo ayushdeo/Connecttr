@@ -1,24 +1,10 @@
-# ---- simple campaign store (file-based) ----
+# ---- simple campaign store (MongoDB-based) ----
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from pathlib import Path
-import json, time, uuid, os
+import time, uuid, os
+from app.db import get_campaigns_collection
 
 store_router = APIRouter(prefix="/campaigns", tags=["campaigns"])
-BASE_DIR = Path(__file__).resolve().parents[2]  # project/back-end
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "campaigns_db.json"
-
-def _load_db():
-    if DB_PATH.exists():
-        with open(DB_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"campaigns": []}
-
-def _save_db(db):
-    with open(DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=2)
 
 class CampaignCreateIn(BaseModel):
     name: str
@@ -34,7 +20,7 @@ class CampaignOut(BaseModel):
 
 @store_router.post("", response_model=CampaignOut)
 def create_campaign(payload: CampaignCreateIn):
-    db = _load_db()
+    collection = get_campaigns_collection()
     cid = uuid.uuid4().hex[:12]
     item = {
         "id": cid,
@@ -43,24 +29,38 @@ def create_campaign(payload: CampaignCreateIn):
         "brief": payload.brief,
         "created_at": time.time(),
     }
-    db["campaigns"].append(item)
-    _save_db(db)
+    # Insert into MongoDB
+    collection.insert_one(item.copy())
+    
+    # Return as model (remove mongo _id if present in dict used for logic, though here we copied)
     return item
 
 @store_router.get("", response_model=list[CampaignOut])
 def list_campaigns():
-    return _load_db()["campaigns"]
+    collection = get_campaigns_collection()
+    campaigns = []
+    for doc in collection.find():
+        doc["id"] = str(doc.get("id") or doc.get("_id"))
+        if "_id" in doc: del doc["_id"]
+        campaigns.append(doc)
+    return campaigns
 
 @store_router.get("/{cid}", response_model=CampaignOut)
 def get_campaign(cid: str):
-    db = _load_db()
-    for c in db["campaigns"]:
-        if c["id"] == cid:
-            return c
-    raise HTTPException(status_code=404, detail="Not found")
+    collection = get_campaigns_collection()
+    # match by id string
+    camp = collection.find_one({"id": cid})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    if "_id" in camp: del camp["_id"]
+    return camp
 
-# --- add these two lines ---
-def get_campaign_by_id(cid: str):  # alias for external imports
-    return get_campaign(cid)
+# --- alias for external imports ---
+def get_campaign_by_id(cid: str):
+    collection = get_campaigns_collection()
+    camp = collection.find_one({"id": cid})
+    if camp and "_id" in camp: del camp["_id"]
+    return camp
 
 campaign_store_router = store_router 
