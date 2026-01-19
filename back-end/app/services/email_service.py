@@ -28,9 +28,16 @@ def upsert_leads_to_hub(leads_data: list[dict]) -> int:
         # API says "import", usually implies create or update.
         # We'll use $set to update provided fields.
         
-        # Ensure status is set if new
         if "status" not in lead_dict:
             lead_dict["status"] = "New"
+
+        # Defaults for sequence control
+        if "sequence_active" not in lead_dict:
+            lead_dict["sequence_active"] = True
+        if "do_not_contact" not in lead_dict:
+            lead_dict["do_not_contact"] = False
+        if "sequence_reason_stopped" not in lead_dict:
+            lead_dict["sequence_reason_stopped"] = None
             
         result = collection.update_one(
             filter_q,

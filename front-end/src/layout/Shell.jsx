@@ -6,6 +6,8 @@ import EmailEditor from "../screens/EmailEditor";
 import AnalyticsDashboard from "../screens/AnalyticsDashboard";
 import SettingsPanel from "../screens/SettingsPanel";
 import EmailHub from "../screens/EmailHub";
+import DemoSidebar from "../screens/DemoSidebar";
+import AppSidebar from "../components/ui/AppSidebar";
 
 
 const Shell = () => {
@@ -41,6 +43,8 @@ const Shell = () => {
         return <AnalyticsDashboard />;
       case "settings":
         return <SettingsPanel />;
+      case "demo":
+        return <DemoSidebar />;
       default:
         return <DashboardHome />;
     }
@@ -48,7 +52,7 @@ const Shell = () => {
 
   if (showLanding) {
     return (
-      <div className="min-h-screen bg-[#0257AC] flex items-center justify-center font-sans overflow-hidden">
+      <div className="min-h-screen bg-midnight-plum flex items-center justify-center font-sans overflow-hidden">
         <div className="text-center transform -translate-y-32 w-full">
           {/* Welcome to */}
           <div
@@ -60,7 +64,7 @@ const Shell = () => {
 
           {/* Nexus */}
           <div
-            className={`text-[5rem] md:text-[8rem] font-extrabold text-white transition-transform duration-700 ${phase > 0 ? "-translate-y-6" : ""
+            className={`text-[5rem] md:text-[8rem] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-lilac-mist to-white transition-transform duration-700 ${phase > 0 ? "-translate-y-6" : ""
               }`}
             style={{ fontFamily: "system-ui, sans-serif" }}
           >
@@ -70,7 +74,7 @@ const Shell = () => {
           {/* Tagline with Typing Animation */}
           {phase >= 1 && (
             <div
-              className="mt-6 text-2xl md:text-3xl text-[#E0F2FF] tracking-wide mx-auto w-fit"
+              className="mt-6 text-2xl md:text-3xl text-lilac-mist tracking-wide mx-auto w-fit"
               style={{ animation: "fadein 0.3s ease-in-out 1s forwards" }}
             >
               <div className="relative inline-block">
@@ -80,7 +84,7 @@ const Shell = () => {
                     width: "0ch",
                     animation: "typing 2.5s steps(23, end) 1s forwards",
                     fontFamily: "system-ui, sans-serif",
-                    color: "#E0F2FF",
+                    color: "#E6C7E6",
                   }}
                 >
                   From Intent to Inbox.
@@ -93,7 +97,7 @@ const Shell = () => {
                     animation: "blink 1s step-end infinite",
                     animationDelay: "3.5s",
                     left: "100%",
-                    color: "#E0F2FF",
+                    color: "#A3779D",
                   }}
                 >
                   |
@@ -136,40 +140,20 @@ const Shell = () => {
 
 
   return (
-    <div className="flex min-h-screen font-sans text-white bg-[#0257AC] transition-all duration-200 ease-in-out">
+    <div className="flex min-h-screen font-sans text-mist bg-ink transition-colors duration-300 relative">
+      {/* Background blobs for glassmorphism effect across the app */}
+      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-royal-amethyst rounded-full blur-[120px] opacity-20 pointer-events-none z-0"></div>
+      <div className="fixed bottom-[10%] right-[-5%] w-[30%] h-[40%] bg-midnight-plum rounded-full blur-[100px] opacity-30 pointer-events-none z-0"></div>
+
       {/* Sidebar */}
-      <div className="w-64 bg-[#012A4A] shadow-lg shadow-[#011B33] flex flex-col justify-between py-6 px-4 border-r border-white/10">
-        <div>
-          <div className="text-xl font-semibold text-white mb-8 px-2">{BRAND}</div>
-          <nav className="space-y-2">
-            <SidebarLink label="Dashboard" active={activePage === "dashboard"} onClick={() => setActivePage("dashboard")} />
-            <SidebarLink label="Campaigns" active={activePage === "campaigns"} onClick={() => setActivePage("campaigns")} />
-            <SidebarLink label="Email Editor" active={activePage === "email"} onClick={() => setActivePage("email")} />
-            <SidebarLink label="Email Hub" active={activePage === "emailhub"} onClick={() => setActivePage("emailhub")} />
-            <SidebarLink label="Analytics" active={activePage === "analytics"} onClick={() => setActivePage("analytics")} />
-            <SidebarLink label="Settings" active={activePage === "settings"} onClick={() => setActivePage("settings")} />
-          </nav>
-        </div>
-        <div className="mt-auto text-xs text-white/60">
-          © {new Date().getFullYear()} {BRAND}        </div>
-      </div>
+      <AppSidebar activePage={activePage} setActivePage={setActivePage} />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto z-10 relative">
         {renderPage()}
       </div>
     </div>
   );
 };
-
-const SidebarLink = ({ label, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`w-full text-left px-4 py-2 rounded-lg transition-all duration-200 ease-in-out
-      ${active ? "bg-white text-[#0257AC] font-medium" : "text-[#E0F2FF] hover:bg-[#023E7D] hover:text-white"}`}
-  >
-    {label}
-  </button>
-);
 
 export default Shell;

@@ -1,10 +1,100 @@
+
 import React, { useEffect, useState } from "react";
 import StartNewCampaign from "./StartNewCampaign";
 import EnterKeywords from "./EnterKeywords";
 import LoadingScreen from "./LoadingScreen";
 import { API } from "../config";
+import { Search, Plus, ExternalLink, ArrowRight, Activity, Globe, FileText, Check } from "lucide-react";
+
+// Helper components
+const Chip = ({ children }) => (
+  <span className="text-[10px] uppercase font-bold text-white bg-white/10 border border-white/5 px-2 py-1 rounded-md">{children}</span>
+);
+
+const SectionCard = ({ title, items, text, icon }) => (
+  <div className="bg-slate rounded-2xl p-6 border border-white/5 hover:border-royal-amethyst/20 transition-colors">
+    <div className="flex items-center gap-2 mb-4 text-soft-violet">
+      {icon}
+      <h3 className="text-xs uppercase tracking-wider font-bold">{title}</h3>
+    </div>
+    {Array.isArray(items) && items.length > 0 ? (
+      <ul className="space-y-2">
+        {items.map((s, i) => (
+          <li key={i} className="text-sm text-mist flex items-start gap-2">
+            <span className="mt-1.5 w-1 h-1 rounded-full bg-royal-amethyst flex-shrink-0"></span>
+            <span className="leading-relaxed opacity-90">{s}</span>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <div className="text-sm text-white/50 italic">{text || "No data available"}</div>
+    )}
+  </div>
+);
+
+const CampaignCard = ({ campaign, favicon, domain, onView, onGenerate, generating }) => {
+  const created = campaign.created_at
+    ? new Date(campaign.created_at * 1000).toLocaleDateString()
+    : "—";
+  const chips = (campaign.brief?.services || []).slice(0, 3);
+
+  return (
+    <div className="group bg-slate rounded-2xl border border-white/5 hover:border-royal-amethyst/40 transition-all duration-300 hover:shadow-2xl hover:shadow-royal-amethyst/10 flex flex-col h-full overflow-hidden">
+      <div className="p-6 flex-1">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+              {favicon && favicon !== "/favicon.ico" ? (
+                <img src={favicon} alt="" className="w-6 h-6 rounded-md" />
+              ) : (
+                <Globe size={18} className="text-royal-amethyst" />
+              )}
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-lg leading-tight group-hover:text-lilac-mist transition-colors">{campaign.name || "Untitled"}</h3>
+              <a href={campaign.website} target="_blank" rel="noreferrer" className="text-xs text-soft-violet hover:text-white transition-colors truncate block max-w-[200px] mt-0.5">
+                {domain || "No domain"}
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-4 h-14 content-start">
+          {chips.map((s, i) => <Chip key={i}>{s}</Chip>)}
+          {campaign.brief?.services?.length > 3 && (
+            <span className="text-[10px] text-soft-violet py-1 px-1">+{campaign.brief.services.length - 3}</span>
+          )}
+        </div>
+
+        <div className="text-xs text-white/30 pt-4 border-t border-white/5">
+          Created on {created}
+        </div>
+      </div>
+
+      <div className="p-4 bg-white/5 border-t border-white/5 flex items-center gap-3">
+        <button
+          onClick={onView}
+          className="flex-1 py-2 rounded-lg text-sm font-medium text-white hover:bg-white/10 transition-colors"
+        >
+          View Details
+        </button>
+        <button
+          onClick={onGenerate}
+          disabled={generating}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all
+            ${generating
+              ? "bg-white/10 text-white/50 cursor-not-allowed"
+              : "bg-royal-amethyst text-white hover:bg-royal-amethyst/90 shadow-lg shadow-royal-amethyst/20"}`}
+        >
+          {generating ? "Working..." : "Find Leads"}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const CampaignManager = ({ onNavigate = () => { } }) => {
+  // Recompile trigger
   const [stage, setStage] = useState("list"); // list | collect | fallback | review | view
   const [campaigns, setCampaigns] = useState([]);
   const [draft, setDraft] = useState(null);   // { website, brief }
@@ -20,7 +110,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; }
   };
   const faviconFor = (u) =>
-    u ? `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(u)}` : "/favicon.ico";
+    u ? `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(u)}` : null;
 
   const filtered = campaigns
     .filter(c =>
@@ -64,7 +154,6 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
         throw new Error(`Discover failed (${r.status})`);
       }
       const { imported } = await r.json().catch(() => ({}));
-      console.log(`Imported ${imported ?? 0} leads`);
       setLoadingDone(true);
     } catch (e) {
       console.error(e);
@@ -135,35 +224,48 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     const nameDefault = (brief.services && brief.services[0]) || "New Campaign";
 
     return (
-      <div className="p-8 max-w-5xl mx-auto">
-        <button className="text-sm text-[#94A3B8] hover:underline" onClick={() => setStage("collect")}>← Back</button>
-        <h2 className="text-2xl font-semibold text-white mt-2 mb-4">Review What We Learned</h2>
-        <div className="text-sm text-[#94A3B8] mb-3">Website: {draft?.website || "—"}</div>
+      <div className="p-8 max-w-7xl mx-auto min-h-screen animate-in fade-in duration-300">
+        <button className="text-sm text-soft-violet hover:text-white mb-6 flex items-center gap-2 transition-colors" onClick={() => setStage("collect")}>
+          <ArrowRight size={14} className="rotate-180" /> Back
+        </button>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <Card title="Services" items={brief.services} />
-          <Card title="ICP Summary" text={brief.icp_summary} />
-          <Card title="Lead Signals" items={brief.lead_signals} />
-          <Card title="Search Queries" items={brief.search_queries} />
-          <Card title="Exclude Terms" items={brief.exclude_terms} />
-          <Card title="Exclude Domains" items={brief.exclude_domains} />
-          <Card title="Outreach Angles" items={brief.outreach_angles} />
+        <div className="flex flex-col md:flex-row gap-6 items-start justify-between mb-8">
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-2">Review Campaign Brief</h2>
+            <div className="text-mist opacity-70">Website: <span className="text-white">{draft?.website || "—"}</span></div>
+          </div>
+
+          <div className="w-full md:w-auto bg-slate p-1 rounded-xl border border-white/10 flex items-center gap-2">
+            <input
+              className="bg-transparent border-none text-white px-4 py-2 w-full md:w-64 focus:ring-0 placeholder:text-white/30"
+              defaultValue={nameDefault}
+              placeholder="Name your campaign..."
+              onKeyDown={(e) => e.key === "Enter" && saveCampaign(e.currentTarget.value, brief)}
+            />
+            <button
+              className="bg-royal-amethyst text-white px-6 py-2 rounded-lg font-semibold hover:bg-royal-amethyst/90 whitespace-nowrap transition-colors"
+              onClick={(e) => {
+                const input = e.currentTarget.previousSibling;
+                saveCampaign(input.value || nameDefault, brief);
+              }}
+            >
+              Save & Create
+            </button>
+          </div>
         </div>
 
-        <div className="mt-6 flex items-center gap-3">
-          <input
-            className="border rounded-md px-3 py-2 w-80 text-black"
-            defaultValue={nameDefault}
-            onKeyDown={(e) => e.key === "Enter" && saveCampaign(e.currentTarget.value, brief)}
-          />
-          <button className="bg-white text-[#0257AC] px-4 py-2 rounded-md" onClick={(e) => {
-            const input = e.currentTarget.previousSibling;
-            saveCampaign(input.value || nameDefault, brief);
-          }}>
-            Looks good — Save
-          </button>
-          <button className="text-white/80 underline" onClick={() => setStage("fallback")}>
-            Not accurate? Describe it instead
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SectionCard title="Services" items={brief.services} icon={<Activity size={16} />} />
+          <SectionCard title="ICP Summary" text={brief.icp_summary} icon={<FileText size={16} />} />
+          <SectionCard title="Lead Signals" items={brief.lead_signals} icon={<Check size={16} />} />
+          <SectionCard title="Search Queries" items={brief.search_queries} icon={<Search size={16} />} />
+          <SectionCard title="Target Domains" text="Optimized for B2B discovery" icon={<Globe size={16} />} />
+          <SectionCard title="Outreach Angles" items={brief.outreach_angles} icon={<ExternalLink size={16} />} />
+        </div>
+
+        <div className="mt-8 text-center">
+          <button className="text-soft-violet hover:text-white underline decoration-white/20 hover:decoration-white transition-all text-sm" onClick={() => setStage("fallback")}>
+            Results looks wrong? Describe it manually instead.
           </button>
         </div>
       </div>
@@ -176,33 +278,34 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     const favicon = faviconFor(current.website);
 
     return (
-      <div className="p-8 space-y-6">
+      <div className="p-8 space-y-8 animate-in fade-in duration-300">
         <button
-          className="text-sm text-[#AFC7E6] hover:underline"
+          className="text-sm text-soft-violet hover:text-white flex items-center gap-2 transition-colors"
           onClick={() => setStage("list")}
         >
-          ← Back to Campaigns
+          <ArrowRight size={14} className="rotate-180" /> Back to Campaigns
         </button>
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <img src={favicon} alt="" className="w-10 h-10 rounded-md ring-1 ring-white/20" />
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 bg-slate p-6 rounded-2xl border border-white/5 shadow-2xl">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+              {favicon ? <img src={favicon} alt="" className="w-8 h-8 rounded-md" /> : <Globe className="text-royal-amethyst" size={32} />}
+            </div>
             <div>
-              <h2 className="text-3xl text-white font-semibold">{current.name}</h2>
-              <div className="text-sm text-[#AFC7E6]">
-                Website:{" "}
+              <h2 className="text-3xl text-white font-bold">{current.name}</h2>
+              <div className="text-sm text-mist mt-1 flex items-center gap-2">
+                <Globe size={12} className="text-soft-violet" />
                 {current.website ? (
                   <a
                     href={current.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline text-white/90"
-                    title={current.website}
+                    className="hover:text-white transition-colors hover:underline"
                   >
                     {domain}
                   </a>
-                ) : "—"}
+                ) : <span className="opacity-50">No website linked</span>}
               </div>
             </div>
           </div>
@@ -223,29 +326,30 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
           <div className="flex gap-3">
             <button
               onClick={() => setStage("fallback")}
-              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/15 border border-white/10 transition"
+              className="px-5 py-3 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 transition font-medium"
             >
               Edit Brief
             </button>
             <button
               onClick={generateLeads}
               disabled={busy}
-              className={`px-4 py-2 rounded-xl transition
-                ${busy ? "bg-white text-[#0257AC] opacity-90" : "bg-white text-[#0257AC] hover:bg-slate-100"}`}
+              className={`px-6 py-3 rounded-xl transition font-bold shadow-lg shadow-royal-amethyst/20 flex items-center gap-2
+                ${busy ? "bg-white/10 text-white/50" : "bg-royal-amethyst text-white hover:bg-royal-amethyst/90"}`}
             >
-              {busy ? "Finding leads…" : "Generate Leads"}
+              {busy ? "Finding leads…" : "Find More Leads"}
+              {!busy && <ArrowRight size={18} />}
             </button>
           </div>
         </div>
 
         {/* Content grid */}
-        <div className="grid md:grid-cols-2 gap-5">
-          <SectionCard title="Services" items={brief.services} />
-          <SectionCard title="Lead Signals" items={brief.lead_signals} />
-          <SectionCard title="Search Queries" items={brief.search_queries} />
-          <SectionCard title="Exclude Terms" items={brief.exclude_terms} />
-          <SectionCard title="Exclude Domains" items={brief.exclude_domains} />
-          <SectionCard title="Outreach Angles" items={brief.outreach_angles} />
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SectionCard title="Services" items={brief.services} icon={<Activity size={16} />} />
+          <SectionCard title="ICP Summary" text={brief.icp_summary} icon={<FileText size={16} />} />
+          <SectionCard title="Lead Signals" items={brief.lead_signals} icon={<Check size={16} />} />
+          <SectionCard title="Search Queries" items={brief.search_queries} icon={<Search size={16} />} />
+          <SectionCard title="Target Domains" items={brief.exclude_domains} text="Standard exclusions applied" icon={<Globe size={16} />} />
+          <SectionCard title="Outreach Angles" items={brief.outreach_angles} icon={<ExternalLink size={16} />} />
         </div>
       </div>
     );
@@ -253,33 +357,42 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
 
   // list
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h2 className="text-2xl text-[#E0F2FF] font-semibold">All Campaigns</h2>
+    <div className="p-8 space-y-8 animate-in fade-in duration-300">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div>
+          <div className="text-soft-violet text-sm font-semibold uppercase tracking-wider mb-1">Overview</div>
+          <h2 className="text-3xl text-white font-bold">All Campaigns</h2>
+        </div>
 
-        <div className="flex flex-col md:flex-row gap-3 md:items-center">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or website…"
-            className="bg-white/90 text-slate-800 rounded-xl px-4 py-2 w-full md:w-72 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6CA7FF]"
-          />
+        <div className="flex flex-col md:flex-row gap-3 md:items-center bg-slate/50 p-1.5 rounded-2xl border border-white/5">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-royal-amethyst transition-colors" size={16} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..."
+              className="bg-transparent text-white pl-10 pr-4 py-2 w-full md:w-64 placeholder:text-white/20 focus:outline-none"
+            />
+          </div>
+          <div className="h-6 w-px bg-white/10 mx-1 hidden md:block"></div>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="bg-white/90 text-slate-800 rounded-xl px-3 py-2"
+            className="bg-transparent text-white/80 py-2 pl-2 pr-8 text-sm focus:outline-none cursor-pointer hover:text-white"
           >
-            <option value="recent">Sort: Recent</option>
-            <option value="name">Sort: Name</option>
+            <option value="recent" className="bg-slate text-white">Recent</option>
+            <option value="name" className="bg-slate text-white">Name</option>
           </select>
           <button
             onClick={startFlow}
-            className="bg-white text-[#0257AC] font-semibold px-4 py-2 rounded-xl hover:bg-slate-100 transition"
+            className="bg-royal-amethyst text-white font-semibold px-5 py-2 rounded-xl hover:bg-royal-amethyst/90 transition shadow-lg shadow-royal-amethyst/20 flex items-center gap-2"
           >
-            + New Campaign
+            <Plus size={18} />
+            <span>New Campaign</span>
           </button>
         </div>
       </div>
+
       {showLoading && (
         <div className="fixed inset-0 z-50">
           <LoadingScreen
@@ -292,9 +405,14 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
           />
         </div>
       )}
+
       {filtered.length === 0 ? (
-        <div className="text-[#94A3B8] bg-white/5 border border-white/10 rounded-2xl p-10 text-center">
-          No campaigns yet. Click <span className="text-white font-medium">New Campaign</span> to start.
+        <div className="text-soft-violet bg-slate border-dashed border-2 border-white/10 rounded-2xl p-16 text-center flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-2">
+            <Search className="text-white/20" size={32} />
+          </div>
+          <p>No campaigns found.</p>
+          <button onClick={startFlow} className="text-white font-semibold hover:underline">Create your first campaign</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -315,95 +433,5 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     </div>
   );
 };
-
-const Card = ({ title, items, text }) => (
-  <div className="bg-[#023E7D] rounded-2xl p-4 text-white">
-    <div className="text-sm text-[#94A3B8] mb-2">{title}</div>
-    {Array.isArray(items) ? (
-      items && items.length ? (
-        <ul className="list-disc list-inside space-y-1 text-sm">{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
-      ) : <div className="text-[#94A3B8] text-sm">—</div>
-    ) : <div className="text-[#94A3B8] text-sm whitespace-pre-wrap">{text || "—"}</div>}
-  </div>
-);
-
-// --- UI helpers (one copy only)
-const btnBase = "px-3 py-2 rounded-lg text-sm font-semibold transition focus:outline-none";
-const btnPrimary = "bg-white text-[#0257AC] hover:bg-slate-100 focus:ring-2 focus:ring-white/60";
-const btnSecondary = "bg-white/10 text-white border border-white/20 hover:bg-white/15 focus:ring-2 focus:ring-white/30";
-
-const Chip = ({ children }) => (
-  <span className="text-xs bg-white/12 text-white/90 px-2 py-1 rounded-lg">{children}</span>
-);
-
-// Card used in the campaign grid
-const CampaignCard = ({ campaign, favicon, domain, onView, onGenerate, generating }) => {
-  const created = campaign.created_at
-    ? new Date(campaign.created_at * 1000).toLocaleString()
-    : "—";
-  const chips = (campaign.brief?.services || []).slice(0, 3);
-
-  return (
-    <div
-      className="
-        h-full flex flex-col
-        overflow-hidden rounded-2xl
-        bg-gradient-to-br from-[#0E65C4]/25 via-[#0B5BB2]/18 to-[#073B7A]/12
-        border border-white/15 shadow-md
-        hover:border-white/25 hover:shadow-lg transition-all
-      "
-    >
-      {/* body */}
-      <div className="p-5 flex items-start gap-3">
-        <img alt="" src={favicon} className="w-8 h-8 rounded-md ring-1 ring-white/25" />
-        <div className="flex-1 min-w-0">
-          <h3 className="text-white font-semibold truncate">
-            {campaign.name || "Untitled Campaign"}
-          </h3>
-          <div className="mt-1 text-xs text-[#AFC7E6]">
-            Created: <span className="text-white/90">{created}</span>
-          </div>
-          <div className="mt-1 text-xs text-[#AFC7E6] truncate">
-            Website: <span className="text-white/90">{domain || "—"}</span>
-          </div>
-
-          {chips.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {chips.map((s, i) => <Chip key={i}>{s}</Chip>)}
-              {campaign.brief?.services?.length > 3 && (
-                <span className="text-xs text-white/70">+{campaign.brief.services.length - 3}</span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* footer — sticks to bottom-left */}
-      <div className="mt-auto px-5 pb-5 flex items-center gap-3">
-        <button onClick={onView} className={`${btnBase} ${btnSecondary}`}>View</button>
-        <button
-          onClick={onGenerate}
-          disabled={generating}
-          className={`${btnBase} ${btnPrimary} ${generating ? "opacity-90 cursor-not-allowed" : ""}`}
-        >
-          {generating ? "Finding leads…" : "Generate Leads"}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const SectionCard = ({ title, items, text }) => (
-  <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
-    <div className="text-sm text-[#AFC7E6] mb-2">{title}</div>
-    {Array.isArray(items) && items.length > 0 ? (
-      <ul className="list-disc list-inside text-white/90 space-y-1 text-sm max-h-64 overflow-auto pr-1">
-        {items.map((s, i) => <li key={i}>{s}</li>)}
-      </ul>
-    ) : (
-      <div className="text-sm text-[#AFC7E6] whitespace-pre-wrap">{text || "—"}</div>
-    )}
-  </div>
-);
 
 export default CampaignManager;

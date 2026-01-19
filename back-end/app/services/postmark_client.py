@@ -6,6 +6,7 @@ load_dotenv(find_dotenv(filename="apiKey.env", usecwd=True))
 POSTMARK_TOKEN = os.getenv("POSTMARK_TOKEN")          # Server token
 POSTMARK_STREAM = os.getenv("POSTMARK_BROADCAST")     # e.g., "broadcast"
 INBOUND_DOMAIN = os.getenv("INBOUND_DOMAIN")          # e.g., "reply.yourdomain.com"
+POSTMARK_WEBHOOK_SECRET = os.getenv("POSTMARK_WEBHOOK_SECRET")
 
 class PostmarkError(RuntimeError): ...
 
@@ -41,3 +42,21 @@ def send_postmark_email(*, campaign_id: str, lead_id: str,
     if r.status_code >= 300:
         raise PostmarkError(f"HTTP {r.status_code}: {r.text[:300]}")
     return r.json()
+
+def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
+    """
+    Verifies the X-Postmark-Signature header using HMAC-SHA256.
+    """
+    import hmac, hashlib, base64
+    
+    if not signature or not secret:
+        return False
+        
+    computed = hmac.new(
+        key=secret.encode("utf-8"),
+        msg=payload,
+        digestmod=hashlib.sha256
+    ).digest()
+    
+    expected = base64.b64encode(computed).decode("utf-8")
+    return hmac.compare_digest(expected, signature)
