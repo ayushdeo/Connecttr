@@ -8,6 +8,9 @@ from app.services.postmark_client import send_postmark_email
 from app.db import get_leads_collection, get_emails_collection
 
 router = APIRouter(prefix="/emailhub", tags=["emailhub"])
+from app.services.postmark_client import verify_signature, POSTMARK_WEBHOOK_SECRET, PostmarkError
+import logging
+log = logging.getLogger("uvicorn")
 
 # ---- models
 class Lead(BaseModel):
@@ -100,6 +103,15 @@ def send_email(body: SendReq):
     
     if not lead:
         raise HTTPException(404, "Lead not found")
+        
+    # [Start of Change: Sequence Gating]
+    # Enforce global stop and sequence stop rules
+    if lead.get("do_not_contact"):
+         raise HTTPException(400, "Lead is marked as Do Not Contact (Spam Complaint)")
+    
+    if not lead.get("sequence_active", True):
+         raise HTTPException(400, "Lead sequence is stopped")
+    # [End of Change]
 
     resp = send_postmark_email(
         campaign_id=body.campaign_id, lead_id=body.lead_id,
@@ -147,55 +159,96 @@ def thread(lead_id: str):
 
 # ---- webhooks (Postmark)
 @router.post("/webhooks/postmark/inbound")
-async def postmark_inbound(payload: dict):
-    """Configure Postmark Inbound to POST here."""
+async def postmark_inbound(request: Request):
+    """
+    Handle inbound replies from Postmark.
+    Stops sequence and marks lead as Responded.
+    """
+    # 1. Verify Signature
+    payload_bytes = await request.body()
+    signature = request.headers.get("X-Postmark-Signature")
+    
+    # Allow bypass if secret is not set (DEV only) or if explicitly disabled (not implemented here)
+    if POSTMARK_WEBHOOK_SECRET:
+        if not verify_signature(payload_bytes, signature, POSTMARK_WEBHOOK_SECRET):
+             log.warning("Invalid Postmark Signature on Inbound Webhook")
+             raise HTTPException(403, "Invalid Signature")
+    
+    payload = await request.json()
+    
+    # 2. Parse Metadata
     # MailboxHash will be "<campaignId>.<leadId>" from Reply-To r+<cid>.<lid>@...
     mailbox_hash = payload.get("MailboxHash") or ""
     parts = mailbox_hash.split(".", 1)
+    
     cid = parts[0] if len(parts) > 0 else None
     lid = parts[1] if len(parts) > 1 else None
 
     text = payload.get("TextBody") or ""
     subj = payload.get("Subject") or ""
+    msg_id = payload.get("MessageID")
 
     if not lid:
-        print("[Webhook] No lead ID found in MailboxHash")
-        # Proceed anyway? store with null lead?
+        log.error(f"[Webhook] No lead ID found in MailboxHash: {mailbox_hash}")
+        # We store it for manual review, but can't link effectively
+        # return 200 to avoid retries
+        return {"ok": True, "status": "orphaned"}
     
     emails_col = get_emails_collection()
     leads_col = get_leads_collection()
 
+    # 3. Store Message
     msg = {
         "id": uuid.uuid4().hex, 
         "lead_id": lid, 
         "campaign_id": cid,
         "direction": "inbound", 
         "provider": "postmark",
-        "provider_msg_id": payload.get("MessageID"),
+        "provider_msg_id": msg_id,
         "subject": subj, 
         "text": text, 
         "created_at": time.time(),
-        "events": [{"type":"reply_inbound","payload":payload}]
+        "events": [{"type":"reply_inbound", "payload": payload}]
     }
     emails_col.insert_one(msg)
     
-    # mark lead responded
-    if lid:
-        leads_col.update_one(
-            {"id": lid}, # assume string id
-            {"$set": {"status": "Responded"}}
-        )
-        # also try _id just in case
+    # 4. Update Lead State (STOP SEQUENCE)
+    # Try finding lead by ID string or ObjectId
+    filter_q = {"id": lid}
+    if leads_col.find_one(filter_q) is None:
         try:
-             from bson import ObjectId
-             leads_col.update_one({"_id": ObjectId(lid)}, {"$set": {"status": "Responded"}})
+            from bson import ObjectId
+            filter_q = {"_id": ObjectId(lid)}
         except:
-             pass
+            pass # stick with string id
+            
+    leads_col.update_one(
+        filter_q,
+        {
+            "$set": {
+                "status": "Responded",
+                "sequence_active": False,
+                "sequence_reason_stopped": "replied"
+            }
+        }
+    )
 
     return {"ok": True}
 
 @router.post("/webhooks/postmark/events")
 async def postmark_events(request: Request):
+    """
+    Handle delivery/open/click/bounce/spam events.
+    """
+    # 1. Verify Signature
+    payload_bytes = await request.body()
+    signature = request.headers.get("X-Postmark-Signature")
+    
+    if POSTMARK_WEBHOOK_SECRET:
+         if not verify_signature(payload_bytes, signature, POSTMARK_WEBHOOK_SECRET):
+             log.warning("Invalid Postmark Signature on Events Webhook")
+             raise HTTPException(403, "Invalid Signature")
+
     data = await request.json()
     items = data if isinstance(data, list) else [data]
     
@@ -205,33 +258,67 @@ async def postmark_events(request: Request):
     count = 0
     for ev in items:
         msg_id = ev.get("MessageID")
-        etype = ev.get("RecordType")  # Delivery, Open, Click, Bounce...
+        etype = ev.get("RecordType")  # Delivery, Open, Click, Bounce, SpamComplaint
         
         # update message events
-        # We need to find the message by provider_msg_id
         msg = emails_col.find_one({"provider_msg_id": msg_id})
+        lid = None
         
         if msg:
+            lid = msg.get("lead_id")
             event_entry = {"type": etype, "payload": ev, "t": time.time()}
             emails_col.update_one(
                 {"_id": msg["_id"]},
                 {"$push": {"events": event_entry}}
             )
+        else:
+            # Maybe try to extract lead from Metadata if available in event?
+            # Postmark events usually imply we sent it, so we should have provider_msg_id.
+            pass
+
+        if not lid:
+            continue
+
+        # 2. Handle State Transitions
+        # Find lead (support ObjectId fallback)
+        filter_q = {"id": lid}
+        lead = leads_col.find_one(filter_q)
+        if not lead:
+             try:
+                 from bson import ObjectId
+                 filter_q = {"_id": ObjectId(lid)}
+                 lead = leads_col.find_one(filter_q)
+             except:
+                 pass
+        
+        if not lead:
+            continue
             
-            # lightweight status sync
-            lid = msg.get("lead_id")
-            if lid:
-                if etype == "Open":
-                    # only update if current status is Sent (don't overwrite 'Responded')
-                    leads_col.update_one(
-                        {"id": lid, "status": "Sent"},
-                        {"$set": {"status": "Opened"}}
-                    )
-                if etype == "Bounce":
-                     leads_col.update_one(
-                        {"id": lid},
-                        {"$set": {"status": "Bounced"}}
-                    )
-            count += 1
+        current_status = lead.get("status")
+
+        updates = {}
+        
+        if etype == "Open" or etype == "Click":
+            # Only mark Opened if not already Responded
+            if current_status not in ["Responded", "Bounced", "SpamComplaint"]:
+                updates["status"] = "Opened"
+        
+        elif etype == "Bounce":
+            # HARD STOP
+            updates["status"] = "Bounced"
+            updates["sequence_active"] = False
+            updates["sequence_reason_stopped"] = "bounced"
+            
+        elif etype == "SpamComplaint":
+            # HARD STOP + DO NOT CONTACT
+            updates["status"] = "SpamComplaint"
+            updates["sequence_active"] = False
+            updates["sequence_reason_stopped"] = "spam_complaint"
+            updates["do_not_contact"] = True
+            
+        if updates:
+            leads_col.update_one(filter_q, {"$set": updates})
+            
+        count += 1
             
     return {"ok": True, "count": count}
