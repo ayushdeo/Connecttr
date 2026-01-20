@@ -9,21 +9,153 @@ import {
   User,
   Building,
   Inbox,
-  ChevronDown
+  ChevronDown,
+  MoreHorizontal,
+  MailOpen,
+  MousePointer2,
+  Reply,
+  AlertCircle
 } from "lucide-react";
 
-// Verified Senders (Hardcoded for now as per requirements)
+// Verified Senders
 const VERIFIED_SENDERS = [
   { label: "Ayush Deo", email: "ayush@connecttr.com" },
   { label: "Connecttr Team", email: "info@connecttr.com" },
   { label: "Serafim P.", email: "serafim@connecttr.com" }
 ];
 
+// Helper: Parse Message Content
+const parseMessageContent = (text) => {
+  if (!text) return { fresh: "", quoted: null };
+
+  // Regex for common reply delimiters
+  // 1. On [Date], [Name] wrote:
+  // 2. > (standard quote)
+  // 3. -----Original Message-----
+  const patterns = [
+    /\r?\nOn .+, .+ wrote:/,
+    /\r?\n> /,
+    /\r?\n-{3,}\s?Original Message\s?-{3,}/,
+    /\r?\nFrom:\s/
+  ];
+
+  for (const p of patterns) {
+    const match = text.match(p);
+    if (match && match.index > 0) { // Ensure we have some fresh text
+      return {
+        fresh: text.substring(0, match.index).trim(),
+        quoted: text.substring(match.index).trim()
+      };
+    }
+  }
+
+  return { fresh: text, quoted: null };
+};
+
+// Component: Message Card
+const MessageCard = ({ message, isLatest, senderName }) => {
+  const [expanded, setExpanded] = useState(false);
+  const { fresh, quoted } = parseMessageContent(message.text);
+  const isOutbound = message.direction === 'outbound';
+
+  return (
+    <div className={`flex w-full mb-8 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+      <div className={`relative max-w-[85%] min-w-[300px] flex flex-col group transition-all duration-500
+        ${isLatest ? "opacity-100 translate-y-0" : "opacity-80 hover:opacity-100"}
+      `}>
+
+        {/* Avatar & Sender Info (Outside bubble for clean look) */}
+        <div className={`flex items-end gap-3 mb-2 ${isOutbound ? "flex-row-reverse" : "flex-row"}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-lg 
+            ${isOutbound ? "bg-royal-amethyst text-white" : "bg-slate border border-white/10 text-soft-violet"}`}>
+            {isOutbound ? "You" : senderName.charAt(0)}
+          </div>
+          <div className={`flex flex-col text-xs ${isOutbound ? "items-end" : "items-start"}`}>
+            <span className="font-bold text-white">{isOutbound ? "You" : senderName}</span>
+            <span className="text-soft-violet/60">
+              {new Date(message.created_at * 1000).toLocaleString(undefined, {
+                weekday: 'short', hour: 'numeric', minute: 'numeric'
+              })}
+            </span>
+          </div>
+        </div>
+
+        {/* Bubble */}
+        <div className={`rounded-2xl p-5 shadow-xl border backdrop-blur-sm relative overflow-hidden
+          ${isOutbound
+            ? 'bg-gradient-to-br from-royal-amethyst/20 to-midnight-plum/80 border-royal-amethyst/30 text-mist rounded-tr-sm'
+            : 'bg-slate/60 border-white/5 text-mist rounded-tl-sm'
+          }
+        `}>
+
+          {/* Subject (Only if different context or first message, simplified for now: always show small) */}
+          <div className="text-[10px] uppercase tracking-wider font-semibold opacity-40 mb-3 truncate">
+            {message.subject}
+          </div>
+
+          {/* Body */}
+          <div className="whitespace-pre-wrap text-sm leading-relaxed font-light">
+            {fresh}
+          </div>
+
+          {/* Quoted Section */}
+          {quoted && (
+            <div className="mt-4 pt-3 border-t border-white/5">
+              {!expanded ? (
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="flex items-center gap-2 text-xs text-soft-violet/50 hover:text-soft-violet transition-colors"
+                >
+                  <MoreHorizontal size={14} /> Show quoted message
+                </button>
+              ) : (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="pl-3 border-l-2 border-white/10 text-xs text-soft-violet/60 whitespace-pre-wrap font-mono leading-tight">
+                    {quoted}
+                  </div>
+                  <button
+                    onClick={() => setExpanded(false)}
+                    className="mt-2 text-[10px] text-soft-violet/40 hover:text-soft-violet uppercase tracking-wide"
+                  >
+                    Hide quote
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* System Events (Divider style) */}
+        {message.events && message.events.length > 0 && (
+          <div className={`mt-3 flex flex-wrap gap-2 ${isOutbound ? "justify-end" : "justify-start"}`}>
+            {message.events.map((ev, i) => (
+              <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/5 text-[10px] text-soft-violet/80 shadow-sm">
+                {ev.RecordType === "Open" && <MailOpen size={10} className="text-amber-400" />}
+                {ev.RecordType === "Click" && <MousePointer2 size={10} className="text-emerald-400" />}
+                {ev.RecordType === "Delivery" && <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />}
+                {ev.RecordType === "Bounce" && <AlertCircle size={10} className="text-red-400" />}
+
+                <span className="capitalize">{ev.RecordType}</span>
+                {ev.CreatedAt && <span className="opacity-50 border-l border-white/10 pl-1.5 ml-0.5">
+                  {new Date(ev.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
+
 const EmailHub = () => {
   // --- STATE ---
   const [leads, setLeads] = useState([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
-  const [filter, setFilter] = useState("All"); // All, Unread, Responded
+  const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
   const [selectedLead, setSelectedLead] = useState(null);
@@ -47,12 +179,10 @@ const EmailHub = () => {
 
   // --- EFFECTS ---
 
-  // 1. Load Leads
   useEffect(() => {
     loadLeads();
   }, []);
 
-  // 2. Scroll to bottom of thread
   useEffect(() => {
     if (threadEndRef.current) {
       threadEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -73,7 +203,6 @@ const EmailHub = () => {
     }
   };
 
-  // 3. Load Thread when Lead Selected
   useEffect(() => {
     if (!selectedLead) {
       setThread([]);
@@ -88,7 +217,6 @@ const EmailHub = () => {
         setThread(data.messages || []);
 
         // Pre-fill composer for REPLY
-        // If thread exists, use the latest subject with "Re:" if needed, or keep existing
         const lastMsg = data.messages?.[data.messages.length - 1];
         const replySubject = lastMsg ? (lastMsg.subject.startsWith("Re:") ? lastMsg.subject : `Re: ${lastMsg.subject}`) : "Connecttr Outreach";
 
@@ -109,7 +237,6 @@ const EmailHub = () => {
     fetchThread();
   }, [selectedLead]);
 
-  // 4. Handle Draft Selection
   useEffect(() => {
     if (aiDrafts && aiDrafts[selectedDraft]) {
       setComposer(prev => ({
@@ -119,7 +246,6 @@ const EmailHub = () => {
       }));
     }
   }, [selectedDraft, aiDrafts]);
-
 
   // --- ACTIONS ---
 
@@ -153,7 +279,6 @@ const EmailHub = () => {
     e.preventDefault();
     setSending(true);
 
-    // Optimistic UI Update
     const optimisticMsg = {
       id: "opt-" + Date.now(),
       direction: "outbound",
@@ -163,7 +288,6 @@ const EmailHub = () => {
       events: []
     };
 
-    // If we have a selected lead, append to thread immediately
     if (selectedLead) {
       setThread(prev => [...prev, optimisticMsg]);
     }
@@ -190,19 +314,13 @@ const EmailHub = () => {
       if (!r.ok) throw new Error("Send failed");
       await r.json();
 
-      // If new lead was created (Manual/New Email mode), we need to reload list and select it
-      // For now, simplicity: just clear composer if new, or refresh if existing.
-
       if (!selectedLead) {
-        // Start fresh
         loadLeads();
         setComposer(prev => ({ ...prev, to_email: "", subject: "", body: "" }));
         alert("Email sent! The lead will appear in your inbox shortly.");
       } else {
-        // Clear body only
         setComposer(prev => ({ ...prev, body: "" }));
-
-        // Background refresh to get real ID/status
+        // Background refresh
         const rThread = await fetch(`${API}/emailhub/threads/${selectedLead.id}`);
         const dThread = await rThread.json();
         setThread(dThread.messages || []);
@@ -210,7 +328,6 @@ const EmailHub = () => {
 
     } catch (e) {
       alert(e.message);
-      // Rollback optimistic update if needed (omitted for brevity)
     } finally {
       setSending(false);
     }
@@ -228,7 +345,6 @@ const EmailHub = () => {
     setAiDrafts(null);
   };
 
-  // --- FILTERING ---
   const filteredLeads = leads.filter(l => {
     if (search && !l.name?.toLowerCase().includes(search.toLowerCase()) && !l.email?.toLowerCase().includes(search.toLowerCase())) return false;
     if (filter === "Unread" && l.status !== "Responded") return false;
@@ -236,7 +352,6 @@ const EmailHub = () => {
     return true;
   });
 
-  // --- RENDER ---
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-ink text-mist font-sans">
 
@@ -343,7 +458,7 @@ const EmailHub = () => {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-6 space-y-2 scroll-smooth">
               {loadingThread ? (
                 <div className="flex justify-center pt-20"><Loader2 className="animate-spin text-royal-amethyst" size={32} /></div>
               ) : thread.length === 0 ? (
@@ -353,37 +468,12 @@ const EmailHub = () => {
                 </div>
               ) : (
                 thread.map((m, idx) => (
-                  <div key={m.id || idx} className={`flex w-full mb-6 ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl p-5 shadow-lg relative group transition-all duration-300
-                      ${m.direction === 'outbound'
-                        ? 'bg-gradient-to-br from-royal-amethyst/90 to-royal-amethyst/70 text-white rounded-tr-none border border-white/10'
-                        : 'bg-slate/80 backdrop-blur border border-white/5 text-mist rounded-tl-none hover:border-white/10'
-                      }`}>
-
-                      {/* Meta Header */}
-                      <div className="flex justify-between items-center gap-8 mb-3 text-[10px] uppercase tracking-wider font-semibold opacity-60">
-                        <span>{m.direction === 'outbound' ? 'You' : selectedLead.name}</span>
-                        <span>{new Date(m.created_at * 1000).toLocaleString(undefined, { hour: 'numeric', minute: 'numeric', month: 'short', day: 'numeric' })}</span>
-                      </div>
-
-                      {/* Content */}
-                      <div className="font-semibold text-sm mb-2 leading-snug">{m.subject}</div>
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed opacity-90">{m.text}</div>
-
-                      {/* Events Footer */}
-                      {m.events && m.events.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-white/10 flex gap-2 flex-wrap">
-                          {m.events.map((ev, i) => (
-                            <div key={i} className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded bg-black/20 text-soft-violet border border-white/5">
-                              {ev.RecordType === "Open" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>}
-                              {ev.RecordType === "Click" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
-                              {ev.RecordType}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <MessageCard
+                    key={m.id || idx}
+                    message={m}
+                    senderName={selectedLead.name}
+                    isLatest={idx === thread.length - 1}
+                  />
                 ))
               )}
               <div ref={threadEndRef} />
