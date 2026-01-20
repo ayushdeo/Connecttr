@@ -8,7 +8,7 @@ from app.services.postmark_client import send_postmark_email
 from app.db import get_leads_collection, get_emails_collection
 
 router = APIRouter(prefix="/emailhub", tags=["emailhub"])
-from app.services.postmark_client import verify_signature, POSTMARK_WEBHOOK_SECRET, PostmarkError
+from app.services.postmark_client import PostmarkError
 import logging
 log = logging.getLogger("uvicorn")
 
@@ -158,22 +158,20 @@ def thread(lead_id: str):
     return {"messages": msgs}
 
 # ---- webhooks (Postmark)
+@router.get("/webhooks/postmark/inbound")
+def postmark_inbound_check():
+    """
+    Simple check endpoint for Postmark UI.
+    """
+    return {"ok": True, "message": "Inbound webhook ready"}
+
 @router.post("/webhooks/postmark/inbound")
 async def postmark_inbound(request: Request):
     """
     Handle inbound replies from Postmark.
     Stops sequence and marks lead as Responded.
     """
-    # 1. Verify Signature
-    payload_bytes = await request.body()
-    signature = request.headers.get("X-Postmark-Signature")
-    
-    # Allow bypass if secret is not set (DEV only) or if explicitly disabled (not implemented here)
-    if POSTMARK_WEBHOOK_SECRET:
-        if not verify_signature(payload_bytes, signature, POSTMARK_WEBHOOK_SECRET):
-             log.warning("Invalid Postmark Signature on Inbound Webhook")
-             raise HTTPException(403, "Invalid Signature")
-    
+    # NO Signature Verification required for Postmark Inbound
     payload = await request.json()
     
     # 2. Parse Metadata
@@ -235,20 +233,19 @@ async def postmark_inbound(request: Request):
 
     return {"ok": True}
 
+@router.get("/webhooks/postmark/events")
+def postmark_events_check():
+    """
+    Simple check endpoint for Postmark UI.
+    """
+    return {"ok": True, "message": "Events webhook ready"}
+
 @router.post("/webhooks/postmark/events")
 async def postmark_events(request: Request):
     """
     Handle delivery/open/click/bounce/spam events.
     """
-    # 1. Verify Signature
-    payload_bytes = await request.body()
-    signature = request.headers.get("X-Postmark-Signature")
-    
-    if POSTMARK_WEBHOOK_SECRET:
-         if not verify_signature(payload_bytes, signature, POSTMARK_WEBHOOK_SECRET):
-             log.warning("Invalid Postmark Signature on Events Webhook")
-             raise HTTPException(403, "Invalid Signature")
-
+    # NO Signature Verification required for Postmark Events
     data = await request.json()
     items = data if isinstance(data, list) else [data]
     
