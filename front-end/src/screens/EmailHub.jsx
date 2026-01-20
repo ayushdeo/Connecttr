@@ -10,7 +10,7 @@ import {
   Building,
   Inbox
 } from "lucide-react";
-import { Card } from "../components/ui/card";
+
 
 const EmailHub = () => {
   // --- STATE ---
@@ -162,7 +162,7 @@ const EmailHub = () => {
       if (!r.ok) throw new Error("Send failed");
 
       // Success
-      const res = await r.json();
+      await r.json();
 
       // If new lead was created, reload list
       if (!selectedLead) {
@@ -296,8 +296,8 @@ const EmailHub = () => {
                 thread.map(m => (
                   <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] rounded-2xl p-4 ${m.direction === 'outbound'
-                        ? 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-100 rounded-tr-none'
-                        : 'bg-slate-800/50 border border-slate-700 text-slate-200 rounded-tl-none'
+                      ? 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-100 rounded-tr-none'
+                      : 'bg-slate-800/50 border border-slate-700 text-slate-200 rounded-tl-none'
                       }`}>
                       <div className="flex justify-between items-center gap-4 mb-2 opacity-60 text-xs">
                         <span>{m.direction === 'outbound' ? 'You' : selectedLead.name}</span>

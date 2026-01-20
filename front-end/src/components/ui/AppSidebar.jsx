@@ -3,11 +3,9 @@ import React from "react";
 import {
     LayoutDashboard,
     Briefcase,
-    Edit3,
     Inbox,
     BarChart2,
-    Settings,
-    Send
+    Settings
 } from "lucide-react";
 
 const navItems = [
