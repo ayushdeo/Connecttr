@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from '../components/ui/card';
-import { Mail, Send, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const QuickSend = () => {
@@ -59,7 +59,7 @@ const QuickSend = () => {
                 throw new Error(err.detail || "Send failed");
             }
 
-            const data = await res.json();
+            await res.json();
             // Redirect to threads/inbox view?
             // "Redirect to EmailHub conversation view on success"
             navigate('/email-hub');

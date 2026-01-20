@@ -1,7 +1,6 @@
 
 import React from 'react';
 import {
-    TrendingUp,
     Users,
     Mail,
     MousePointer2,

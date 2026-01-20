@@ -153,7 +153,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
       if (!r.ok) {
         throw new Error(`Discover failed (${r.status})`);
       }
-      const { imported } = await r.json().catch(() => ({}));
+      await r.json().catch(() => ({}));
       setLoadingDone(true);
     } catch (e) {
       console.error(e);
