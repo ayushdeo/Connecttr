@@ -172,7 +172,11 @@ async def postmark_inbound(request: Request):
     Stops sequence and marks lead as Responded.
     """
     # NO Signature Verification required for Postmark Inbound
-    payload = await request.json()
+    try:
+        payload = await request.json()
+    except Exception as e:
+        log.error(f"Webhook JSON parse failed: {e}")
+        return {"ok": True, "status": "ignored"}
     
     # 2. Parse Metadata
     # MailboxHash will be "<campaignId>.<leadId>" from Reply-To r+<cid>.<lid>@...
@@ -246,7 +250,11 @@ async def postmark_events(request: Request):
     Handle delivery/open/click/bounce/spam events.
     """
     # NO Signature Verification required for Postmark Events
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception as e:
+        log.error(f"Webhook JSON parse failed: {e}")
+        return {"ok": True, "status": "ignored"}
     items = data if isinstance(data, list) else [data]
     
     emails_col = get_emails_collection()
