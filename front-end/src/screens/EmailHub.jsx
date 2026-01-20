@@ -9,9 +9,7 @@ import {
   User,
   Building,
   Inbox,
-  ChevronDown,
-  ChevronRight,
-  Mail
+  ChevronDown
 } from "lucide-react";
 
 // Verified Senders (Hardcoded for now as per requirements)
