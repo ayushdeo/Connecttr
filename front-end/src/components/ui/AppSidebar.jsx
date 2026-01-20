@@ -6,13 +6,15 @@ import {
     Edit3,
     Inbox,
     BarChart2,
-    Settings
+    Settings,
+    Send
 } from "lucide-react";
 
 const navItems = [
     { page: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
     { page: "campaigns", label: "Campaigns", icon: <Briefcase size={20} /> },
     { page: "email", label: "Email Editor", icon: <Edit3 size={20} /> },
+    { page: "quick-send", label: "Quick Send", icon: <Send size={20} /> },
     { page: "emailhub", label: "Email Hub", icon: <Inbox size={20} /> },
     { page: "analytics", label: "Analytics", icon: <BarChart2 size={20} /> },
     { page: "settings", label: "Settings", icon: <Settings size={20} /> },
