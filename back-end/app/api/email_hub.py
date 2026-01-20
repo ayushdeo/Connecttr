@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Body
 from pydantic import BaseModel, EmailStr
 import time, uuid, os, json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from app.services.perplexity_writer import generate_email_templates
 from app.services.postmark_client import send_postmark_email
@@ -165,22 +165,15 @@ def postmark_inbound_check():
     """
     return {"ok": True, "message": "Inbound webhook ready"}
 
-@router.post("/webhooks/postmark/inbound")
-def postmark_inbound(raw_body: bytes = Body(default=b"")):
+@router.post("/webhooks/postmark/inbound", dependencies=[])
+def postmark_inbound(payload: Dict[str, Any] = Body(default={})):
     """
     Handle inbound replies from Postmark.
     Stops sequence and marks lead as Responded.
     [SYNC] Uses threadpool to avoid blocking event loop with PyMongo.
     """
     # NO Signature Verification required for Postmark Inbound
-    try:
-        if not raw_body:
-             payload = {}
-        else:
-             payload = json.loads(raw_body)
-    except Exception as e:
-        log.error(f"Webhook JSON parse failed: {e}")
-        return {"ok": True, "status": "ignored"}
+    # Payload is automatically parsed by FastAPI/Pydantic from JSON body
     
     # 2. Parse Metadata
     # MailboxHash will be "<campaignId>.<leadId>" from Reply-To r+<cid>.<lid>@...
@@ -254,21 +247,14 @@ def postmark_events_check():
     """
     return {"ok": True, "message": "Events webhook ready"}
 
-@router.post("/webhooks/postmark/events")
-def postmark_events(raw_body: bytes = Body(default=b"")):
+@router.post("/webhooks/postmark/events", dependencies=[])
+def postmark_events(data: Dict[str, Any] | List[Dict[str, Any]] = Body(default={})):
     """
     Handle delivery/open/click/bounce/spam events.
     [SYNC] Uses threadpool to avoid blocking event loop with PyMongo.
     """
     # NO Signature Verification required for Postmark Events
-    try:
-        if not raw_body:
-             data = {}
-        else:
-             data = json.loads(raw_body)
-    except Exception as e:
-        log.error(f"Webhook JSON parse failed: {e}")
-        return {"ok": True, "status": "ignored"}
+    # Data is parsed automatically (can be dict or list of dicts)
     items = data if isinstance(data, list) else [data]
     
     emails_col = get_emails_collection()
