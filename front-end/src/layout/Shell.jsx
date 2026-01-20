@@ -8,6 +8,7 @@ import SettingsPanel from "../screens/SettingsPanel";
 import EmailHub from "../screens/EmailHub";
 import DemoSidebar from "../screens/DemoSidebar";
 import AppSidebar from "../components/ui/AppSidebar";
+import QuickSend from "../screens/QuickSend";
 
 
 const Shell = () => {
@@ -45,6 +46,8 @@ const Shell = () => {
         return <SettingsPanel />;
       case "demo":
         return <DemoSidebar />;
+      case "quick-send":
+        return <QuickSend />;
       default:
         return <DashboardHome />;
     }

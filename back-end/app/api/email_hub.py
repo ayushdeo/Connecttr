@@ -33,6 +33,7 @@ class SendReq(BaseModel):
     lead_id: str
     campaign_id: str
     from_email: EmailStr
+    to_email: Optional[EmailStr] = None  # Added for manual sends
     choice: str  # "A" | "B" | "C"
     draft: dict   # {subject, body}
 
@@ -92,30 +93,67 @@ def send_email(body: SendReq):
     leads_col = get_leads_collection()
     emails_col = get_emails_collection()
 
-    lead = leads_col.find_one({"id": body.lead_id})
-    if not lead:
-         # fallback try _id objectid
-         try:
-            from bson import ObjectId
-            lead = leads_col.find_one({"_id": ObjectId(body.lead_id)})
-         except:
-            pass
-    
-    if not lead:
-        raise HTTPException(404, "Lead not found")
+    # MANUAL SEND LOGIC
+    if body.campaign_id == "default":
+        # 1. Validate inputs
+        if not body.to_email:
+             raise HTTPException(400, "to_email is required for manual sends")
         
-    # [Start of Change: Sequence Gating]
-    # Enforce global stop and sequence stop rules
-    if lead.get("do_not_contact"):
-         raise HTTPException(400, "Lead is marked as Do Not Contact (Spam Complaint)")
-    
-    if not lead.get("sequence_active", True):
-         raise HTTPException(400, "Lead sequence is stopped")
-    # [End of Change]
+        # 2. Check or Create Lead
+        # Try to find existing lead by email to link history
+        existing = leads_col.find_one({"email": body.to_email})
+        if existing:
+            lead = existing
+            # Ensure ID is string
+            if "_id" in lead: lead["id"] = str(lead.get("id") or lead.get("_id"))
+        else:
+            # Create new lead
+            new_id = body.lead_id if body.lead_id else uuid.uuid4().hex
+            lead = {
+                "id": new_id,
+                "email": body.to_email,
+                "name": body.to_email.split("@")[0], # Fallback name
+                "status": "New",
+                "sequence_active": True,
+                "campaign_id": "default",
+                "created_at": time.time()
+            }
+            leads_col.insert_one(lead)
+            
+    else:
+        # CAMPAIGN SEND LOGIC (Existing)
+        lead = leads_col.find_one({"id": body.lead_id})
+        if not lead:
+             # fallback try _id objectid
+             try:
+                from bson import ObjectId
+                lead = leads_col.find_one({"_id": ObjectId(body.lead_id)})
+             except:
+                pass
+        
+        if not lead:
+            raise HTTPException(404, "Lead not found")
+            
+        # [Start of Change: Sequence Gating]
+        # Enforce global stop and sequence stop rules
+        if lead.get("do_not_contact"):
+             raise HTTPException(400, "Lead is marked as Do Not Contact (Spam Complaint)")
+        
+        if not lead.get("sequence_active", True):
+             raise HTTPException(400, "Lead sequence is stopped")
+        # [End of Change]
+
+    # COMMON SEND LOGIC
+    # Ensure to_email is set (from lead if not passed)
+    recipient = body.to_email or lead.get("email")
+    if not recipient:
+        raise HTTPException(400, "Lead has no email address")
 
     resp = send_postmark_email(
-        campaign_id=body.campaign_id, lead_id=body.lead_id,
-        to_email=lead.get("email"), from_email=body.from_email,
+        campaign_id=body.campaign_id,
+        lead_id=str(lead.get("id") or lead.get("_id") or ""), # Ensure string
+        to_email=recipient, 
+        from_email=body.from_email,
         subject=body.draft.get("subject","(no subject)"),
         text_body=body.draft.get("body","")
     )
@@ -123,7 +161,7 @@ def send_email(body: SendReq):
     # persist message
     msg = {
         "id": uuid.uuid4().hex, 
-        "lead_id": body.lead_id, 
+        "lead_id": str(lead.get("id") or lead.get("_id") or ""), 
         "campaign_id": body.campaign_id,
         "direction": "outbound", 
         "provider": "postmark",
@@ -136,8 +174,14 @@ def send_email(body: SendReq):
     emails_col.insert_one(msg)
     
     # update lead status
+    # Support both string ID and ObjectId
+    if "_id" in lead:
+        filter_q = {"_id": lead["_id"]}
+    else:
+        filter_q = {"id": lead["id"]}
+        
     leads_col.update_one(
-        {"_id": lead["_id"]},
+        filter_q,
         {"$set": {"status": "Sent"}}
     )
 
