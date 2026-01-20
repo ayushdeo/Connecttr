@@ -196,44 +196,50 @@ async def postmark_inbound(request: Request):
         # return 200 to avoid retries
         return {"ok": True, "status": "orphaned"}
     
+    # 3. Store Message
     emails_col = get_emails_collection()
     leads_col = get_leads_collection()
-
-    # 3. Store Message
-    msg = {
-        "id": uuid.uuid4().hex, 
-        "lead_id": lid, 
-        "campaign_id": cid,
-        "direction": "inbound", 
-        "provider": "postmark",
-        "provider_msg_id": msg_id,
-        "subject": subj, 
-        "text": text, 
-        "created_at": time.time(),
-        "events": [{"type":"reply_inbound", "payload": payload}]
-    }
-    emails_col.insert_one(msg)
     
-    # 4. Update Lead State (STOP SEQUENCE)
-    # Try finding lead by ID string or ObjectId
-    filter_q = {"id": lid}
-    if leads_col.find_one(filter_q) is None:
-        try:
-            from bson import ObjectId
-            filter_q = {"_id": ObjectId(lid)}
-        except:
-            pass # stick with string id
-            
-    leads_col.update_one(
-        filter_q,
-        {
-            "$set": {
-                "status": "Responded",
-                "sequence_active": False,
-                "sequence_reason_stopped": "replied"
-            }
+    try:
+        msg = {
+            "id": uuid.uuid4().hex, 
+            "lead_id": lid, 
+            "campaign_id": cid,
+            "direction": "inbound", 
+            "provider": "postmark",
+            "provider_msg_id": msg_id,
+            "subject": subj, 
+            "text": text, 
+            "created_at": time.time(),
+            "events": [{"type":"reply_inbound", "payload": payload}]
         }
-    )
+        # Short timeout to prevent blocking
+        emails_col.insert_one(msg)
+        
+        # 4. Update Lead State (STOP SEQUENCE)
+        # Try finding lead by ID string or ObjectId
+        filter_q = {"id": lid}
+        if leads_col.find_one(filter_q, max_time_ms=200) is None:
+            try:
+                from bson import ObjectId
+                filter_q = {"_id": ObjectId(lid)}
+            except:
+                pass # stick with string id
+                
+        leads_col.update_one(
+            filter_q,
+            {
+                "$set": {
+                    "status": "Responded",
+                    "sequence_active": False,
+                    "sequence_reason_stopped": "replied"
+                }
+            }
+        )
+    except Exception as e:
+        log.error(f"DB Error in Inbound Webhook: {e}")
+        # Always return OK to keep Postmark happy
+        pass
 
     return {"ok": True}
 
@@ -261,69 +267,72 @@ async def postmark_events(request: Request):
     leads_col = get_leads_collection()
     
     count = 0
-    for ev in items:
-        msg_id = ev.get("MessageID")
-        etype = ev.get("RecordType")  # Delivery, Open, Click, Bounce, SpamComplaint
-        
-        # update message events
-        msg = emails_col.find_one({"provider_msg_id": msg_id})
-        lid = None
-        
-        if msg:
-            lid = msg.get("lead_id")
-            event_entry = {"type": etype, "payload": ev, "t": time.time()}
-            emails_col.update_one(
-                {"_id": msg["_id"]},
-                {"$push": {"events": event_entry}}
-            )
-        else:
-            # Maybe try to extract lead from Metadata if available in event?
-            # Postmark events usually imply we sent it, so we should have provider_msg_id.
-            pass
-
-        if not lid:
-            continue
-
-        # 2. Handle State Transitions
-        # Find lead (support ObjectId fallback)
-        filter_q = {"id": lid}
-        lead = leads_col.find_one(filter_q)
-        if not lead:
-             try:
-                 from bson import ObjectId
-                 filter_q = {"_id": ObjectId(lid)}
-                 lead = leads_col.find_one(filter_q)
-             except:
-                 pass
-        
-        if not lead:
-            continue
+    try:
+        for ev in items:
+            msg_id = ev.get("MessageID")
+            etype = ev.get("RecordType")  # Delivery, Open, Click, Bounce, SpamComplaint
             
-        current_status = lead.get("status")
-
-        updates = {}
-        
-        if etype == "Open" or etype == "Click":
-            # Only mark Opened if not already Responded
-            if current_status not in ["Responded", "Bounced", "SpamComplaint"]:
-                updates["status"] = "Opened"
-        
-        elif etype == "Bounce":
-            # HARD STOP
-            updates["status"] = "Bounced"
-            updates["sequence_active"] = False
-            updates["sequence_reason_stopped"] = "bounced"
+            # update message events
+            msg = emails_col.find_one({"provider_msg_id": msg_id}, max_time_ms=200)
+            lid = None
             
-        elif etype == "SpamComplaint":
-            # HARD STOP + DO NOT CONTACT
-            updates["status"] = "SpamComplaint"
-            updates["sequence_active"] = False
-            updates["sequence_reason_stopped"] = "spam_complaint"
-            updates["do_not_contact"] = True
+            if msg:
+                lid = msg.get("lead_id")
+                event_entry = {"type": etype, "payload": ev, "t": time.time()}
+                emails_col.update_one(
+                    {"_id": msg["_id"]},
+                    {"$push": {"events": event_entry}}
+                )
+            else:
+                pass
+    
+            if not lid:
+                continue
+    
+            # 2. Handle State Transitions
+            # Find lead (support ObjectId fallback)
+            filter_q = {"id": lid}
+            lead = leads_col.find_one(filter_q, max_time_ms=200)
+            if not lead:
+                 try:
+                     from bson import ObjectId
+                     filter_q = {"_id": ObjectId(lid)}
+                     lead = leads_col.find_one(filter_q, max_time_ms=200)
+                 except:
+                     pass
             
-        if updates:
-            leads_col.update_one(filter_q, {"$set": updates})
+            if not lead:
+                continue
+                
+            current_status = lead.get("status")
+    
+            updates = {}
             
-        count += 1
+            if etype == "Open" or etype == "Click":
+                # Only mark Opened if not already Responded
+                if current_status not in ["Responded", "Bounced", "SpamComplaint"]:
+                    updates["status"] = "Opened"
+            
+            elif etype == "Bounce":
+                # HARD STOP
+                updates["status"] = "Bounced"
+                updates["sequence_active"] = False
+                updates["sequence_reason_stopped"] = "bounced"
+                
+            elif etype == "SpamComplaint":
+                # HARD STOP + DO NOT CONTACT
+                updates["status"] = "SpamComplaint"
+                updates["sequence_active"] = False
+                updates["sequence_reason_stopped"] = "spam_complaint"
+                updates["do_not_contact"] = True
+                
+            if updates:
+                leads_col.update_one(filter_q, {"$set": updates})
+                
+            count += 1
+    except Exception as e:
+        log.error(f"DB Error in Events Webhook: {e}")
+        # Return OK so Postmark doesn't retry endlessly specific malformed events
+        pass
             
     return {"ok": True, "count": count}
