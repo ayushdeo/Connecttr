@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import { BRAND } from "../brand";
 import DashboardHome from "../screens/DashboardHome";
 import CampaignManager from "../screens/CampaignManager";
-import EmailEditor from "../screens/EmailEditor";
 import AnalyticsDashboard from "../screens/AnalyticsDashboard";
 import SettingsPanel from "../screens/SettingsPanel";
 import EmailHub from "../screens/EmailHub";
 import DemoSidebar from "../screens/DemoSidebar";
 import AppSidebar from "../components/ui/AppSidebar";
-import QuickSend from "../screens/QuickSend";
+
 
 
 const Shell = () => {
@@ -36,8 +35,6 @@ const Shell = () => {
         return <DashboardHome onNavigate={setActivePage} />;
       case "campaigns":
         return <CampaignManager onNavigate={setActivePage} />;
-      case "email":
-        return <EmailEditor />;
       case "emailhub":
         return <EmailHub />;
       case "analytics":
@@ -46,8 +43,6 @@ const Shell = () => {
         return <SettingsPanel />;
       case "demo":
         return <DemoSidebar />;
-      case "quick-send":
-        return <QuickSend />;
       default:
         return <DashboardHome />;
     }
