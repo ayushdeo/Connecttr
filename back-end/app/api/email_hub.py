@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Body
 from pydantic import BaseModel, EmailStr
-import time, uuid, os
+import time, uuid, os, json
 from typing import List, Optional
 
 from app.services.perplexity_writer import generate_email_templates
@@ -166,14 +166,18 @@ def postmark_inbound_check():
     return {"ok": True, "message": "Inbound webhook ready"}
 
 @router.post("/webhooks/postmark/inbound")
-async def postmark_inbound(request: Request):
+def postmark_inbound(raw_body: bytes = Body(default=b"")):
     """
     Handle inbound replies from Postmark.
     Stops sequence and marks lead as Responded.
+    [SYNC] Uses threadpool to avoid blocking event loop with PyMongo.
     """
     # NO Signature Verification required for Postmark Inbound
     try:
-        payload = await request.json()
+        if not raw_body:
+             payload = {}
+        else:
+             payload = json.loads(raw_body)
     except Exception as e:
         log.error(f"Webhook JSON parse failed: {e}")
         return {"ok": True, "status": "ignored"}
@@ -251,13 +255,17 @@ def postmark_events_check():
     return {"ok": True, "message": "Events webhook ready"}
 
 @router.post("/webhooks/postmark/events")
-async def postmark_events(request: Request):
+def postmark_events(raw_body: bytes = Body(default=b"")):
     """
     Handle delivery/open/click/bounce/spam events.
+    [SYNC] Uses threadpool to avoid blocking event loop with PyMongo.
     """
     # NO Signature Verification required for Postmark Events
     try:
-        data = await request.json()
+        if not raw_body:
+             data = {}
+        else:
+             data = json.loads(raw_body)
     except Exception as e:
         log.error(f"Webhook JSON parse failed: {e}")
         return {"ok": True, "status": "ignored"}
