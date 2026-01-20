@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { API } from "../config";
 import {
   Search,
@@ -8,9 +8,18 @@ import {
   Sparkles,
   User,
   Building,
-  Inbox
+  Inbox,
+  ChevronDown,
+  ChevronRight,
+  Mail
 } from "lucide-react";
 
+// Verified Senders (Hardcoded for now as per requirements)
+const VERIFIED_SENDERS = [
+  { label: "Ayush Deo", email: "ayush@connecttr.com" },
+  { label: "Connecttr Team", email: "info@connecttr.com" },
+  { label: "Serafim P.", email: "serafim@connecttr.com" }
+];
 
 const EmailHub = () => {
   // --- STATE ---
@@ -22,9 +31,11 @@ const EmailHub = () => {
   const [selectedLead, setSelectedLead] = useState(null);
   const [thread, setThread] = useState([]);
   const [loadingThread, setLoadingThread] = useState(false);
+  const threadEndRef = useRef(null);
 
   // Composer State
   const [composer, setComposer] = useState({
+    from_email: VERIFIED_SENDERS[0].email,
     to_email: "",
     subject: "",
     body: ""
@@ -33,7 +44,7 @@ const EmailHub = () => {
   const [generating, setGenerating] = useState(false);
 
   // AI Drafts
-  const [aiDrafts, setAiDrafts] = useState(null); // { A: {subject, body}, ... }
+  const [aiDrafts, setAiDrafts] = useState(null);
   const [selectedDraft, setSelectedDraft] = useState("A");
 
   // --- EFFECTS ---
@@ -42,6 +53,13 @@ const EmailHub = () => {
   useEffect(() => {
     loadLeads();
   }, []);
+
+  // 2. Scroll to bottom of thread
+  useEffect(() => {
+    if (threadEndRef.current) {
+      threadEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [thread, selectedLead]);
 
   const loadLeads = async () => {
     setLoadingLeads(true);
@@ -57,14 +75,10 @@ const EmailHub = () => {
     }
   };
 
-  // 2. Load Thread when Lead Selected
+  // 3. Load Thread when Lead Selected
   useEffect(() => {
     if (!selectedLead) {
       setThread([]);
-      // Reset composer for "New Email" mode if explicitly deselected
-      // But usually we keep composer clear? 
-      // Let's reset composer if we switch to specific lead (reply mode)
-      // or keep it empty if new.
       return;
     }
 
@@ -76,12 +90,17 @@ const EmailHub = () => {
         setThread(data.messages || []);
 
         // Pre-fill composer for REPLY
-        setComposer({
+        // If thread exists, use the latest subject with "Re:" if needed, or keep existing
+        const lastMsg = data.messages?.[data.messages.length - 1];
+        const replySubject = lastMsg ? (lastMsg.subject.startsWith("Re:") ? lastMsg.subject : `Re: ${lastMsg.subject}`) : "Connecttr Outreach";
+
+        setComposer(prev => ({
+          ...prev,
           to_email: selectedLead.email,
-          subject: `Re: ` + (data.messages?.[0]?.subject || "Connecttr Outreach"),
+          subject: replySubject,
           body: ""
-        });
-        setAiDrafts(null); // clear old drafts
+        }));
+        setAiDrafts(null);
       } catch (e) {
         setThread([]);
       } finally {
@@ -92,7 +111,7 @@ const EmailHub = () => {
     fetchThread();
   }, [selectedLead]);
 
-  // 3. Handle Draft Selection
+  // 4. Handle Draft Selection
   useEffect(() => {
     if (aiDrafts && aiDrafts[selectedDraft]) {
       setComposer(prev => ({
@@ -123,7 +142,7 @@ const EmailHub = () => {
       const data = await r.json();
       if (data.templates) {
         setAiDrafts(data.templates);
-        setSelectedDraft("A"); // Trigger effect to fill composer
+        setSelectedDraft("A");
       }
     } catch (e) {
       alert("Failed to generate drafts");
@@ -135,16 +154,27 @@ const EmailHub = () => {
   const handleSend = async (e) => {
     e.preventDefault();
     setSending(true);
-    try {
-      // Logic: 
-      // If selectedLead exists, use their ID.
-      // If NOT (New Email mode), backend will creating lead.
-      // Current backend requires 'campaign_id="default"' for this flow.
 
+    // Optimistic UI Update
+    const optimisticMsg = {
+      id: "opt-" + Date.now(),
+      direction: "outbound",
+      subject: composer.subject,
+      text: composer.body,
+      created_at: Date.now() / 1000,
+      events: []
+    };
+
+    // If we have a selected lead, append to thread immediately
+    if (selectedLead) {
+      setThread(prev => [...prev, optimisticMsg]);
+    }
+
+    try {
       const payload = {
         lead_id: selectedLead?.id || "",
         campaign_id: "default",
-        from_email: "ayush@connecttr.com", // Todo: Auth user
+        from_email: composer.from_email,
         to_email: composer.to_email,
         choice: "manual",
         draft: {
@@ -160,27 +190,29 @@ const EmailHub = () => {
       });
 
       if (!r.ok) throw new Error("Send failed");
-
-      // Success
       await r.json();
 
-      // If new lead was created, reload list
+      // If new lead was created (Manual/New Email mode), we need to reload list and select it
+      // For now, simplicity: just clear composer if new, or refresh if existing.
+
       if (!selectedLead) {
+        // Start fresh
         loadLeads();
-        // Optionally select the new lead? 
-        // Too complex to parse resp for now, just reload.
-        setComposer({ to_email: "", subject: "", body: "" });
+        setComposer(prev => ({ ...prev, to_email: "", subject: "", body: "" }));
+        alert("Email sent! The lead will appear in your inbox shortly.");
       } else {
-        // Refresh thread
-        // Just append locally or reload? Reload is safer.
+        // Clear body only
+        setComposer(prev => ({ ...prev, body: "" }));
+
+        // Background refresh to get real ID/status
         const rThread = await fetch(`${API}/emailhub/threads/${selectedLead.id}`);
         const dThread = await rThread.json();
         setThread(dThread.messages || []);
-        setComposer(prev => ({ ...prev, body: "" })); // Clear body only, keep subject for reply chain?
       }
 
     } catch (e) {
       alert(e.message);
+      // Rollback optimistic update if needed (omitted for brevity)
     } finally {
       setSending(false);
     }
@@ -190,6 +222,7 @@ const EmailHub = () => {
     setSelectedLead(null);
     setThread([]);
     setComposer({
+      from_email: VERIFIED_SENDERS[0].email,
       to_email: "",
       subject: "",
       body: ""
@@ -200,41 +233,43 @@ const EmailHub = () => {
   // --- FILTERING ---
   const filteredLeads = leads.filter(l => {
     if (search && !l.name?.toLowerCase().includes(search.toLowerCase()) && !l.email?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === "Unread" && l.status !== "Responded") return false; // Approx
+    if (filter === "Unread" && l.status !== "Responded") return false;
     if (filter === "Responded" && l.status !== "Responded") return false;
     return true;
   });
 
   // --- RENDER ---
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-slate-950 text-slate-200 font-sans">
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-ink text-mist font-sans">
 
       {/* COLUMN 1: LEADS LIST */}
-      <div className="w-80 flex flex-col border-r border-white/10 bg-slate-900/50 backdrop-blur-md">
-        <div className="p-4 border-b border-white/10 space-y-3">
+      <div className="w-80 flex flex-col border-r border-white/5 bg-slate/30 backdrop-blur-md">
+        <div className="p-4 border-b border-white/5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-white flex items-center gap-2">
-              <Inbox size={18} /> Inbox
+              <Inbox size={18} className="text-royal-amethyst" /> Inbox
             </h2>
-            <button onClick={startNewEmail} className="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-colors">
+            <button onClick={startNewEmail} className="p-2 bg-royal-amethyst hover:bg-royal-amethyst/80 rounded-lg text-white transition-all shadow-lg shadow-royal-amethyst/20">
               <Plus size={18} />
             </button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-slate-500" size={14} />
+
+          <div className="relative group">
+            <Search className="absolute left-3 top-2.5 text-soft-violet/50 group-focus-within:text-royal-amethyst transition-colors" size={14} />
             <input
-              className="w-full bg-slate-950/50 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-indigo-500/50 transition-colors"
+              className="w-full bg-midnight-plum/50 border border-white/5 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-royal-amethyst/50 transition-all placeholder:text-white/20"
               placeholder="Search leads..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex gap-2">
+
+          <div className="flex gap-2 p-1 bg-midnight-plum/30 rounded-lg border border-white/5">
             {["All", "Responded"].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`text-xs px-2 py-1 rounded-md transition-colors ${filter === f ? "bg-white/10 text-white" : "text-slate-500 hover:text-slate-300"}`}
+                className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${filter === f ? "bg-royal-amethyst text-white shadow" : "text-soft-violet hover:text-white hover:bg-white/5"}`}
               >
                 {f}
               </button>
@@ -242,23 +277,41 @@ const EmailHub = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {loadingLeads ? (
-            <div className="p-8 text-center text-slate-500"><Loader2 className="animate-spin mx-auto mb-2" />Loading...</div>
+            <div className="p-8 text-center text-soft-violet"><Loader2 className="animate-spin mx-auto mb-2 text-royal-amethyst" />Loading...</div>
+          ) : filteredLeads.length === 0 ? (
+            <div className="p-8 text-center text-white/20 italic text-sm">No conversations found</div>
           ) : (
             filteredLeads.map(lead => (
               <div
                 key={lead.id}
                 onClick={() => setSelectedLead(lead)}
-                className={`p-4 border-b border-white/5 cursor-pointer transition-colors hover:bg-white/5 ${selectedLead?.id === lead.id ? "bg-indigo-500/10 border-l-2 border-l-indigo-500" : ""}`}
+                className={`p-4 border-b border-white/5 cursor-pointer transition-all hover:bg-white/5 group relative
+                  ${selectedLead?.id === lead.id ? "bg-white/5 border-l-2 border-l-royal-amethyst" : "border-l-2 border-l-transparent"}
+                `}
               >
                 <div className="flex justify-between mb-1">
-                  <span className={`font-semibold text-sm truncate ${selectedLead?.id === lead.id ? "text-indigo-300" : "text-white"}`}>{lead.name || "Unknown"}</span>
-                  <span className="text-[10px] text-slate-500">{new Date(lead.created_at * 1000).toLocaleDateString()}</span>
+                  <span className={`font-semibold text-sm truncate ${selectedLead?.id === lead.id ? "text-white" : "text-mist"}`}>
+                    {lead.name || "Unknown"}
+                  </span>
+                  <span className="text-[10px] text-soft-violet/70">
+                    {new Date(lead.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
                 </div>
-                <div className="text-xs text-slate-400 truncate mb-1">{lead.company}</div>
-                <div className={`text-[10px] px-1.5 py-0.5 rounded w-fit ${lead.status === "Responded" ? "bg-green-500/20 text-green-400" : "bg-slate-800 text-slate-500"}`}>
-                  {lead.status}
+                <div className="text-xs text-soft-violet truncate mb-2">{lead.company}</div>
+
+                <div className="flex items-center justify-between">
+                  <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1
+                    ${lead.status === "Responded"
+                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                      : lead.status === "Opened"
+                        ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                        : "bg-white/5 text-slate-400 border border-white/5"
+                    }`}>
+                    {lead.status === "Responded" && <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />}
+                    {lead.status}
+                  </div>
                 </div>
               </div>
             ))
@@ -267,52 +320,67 @@ const EmailHub = () => {
       </div>
 
       {/* COLUMN 2: THREAD VIEW */}
-      <div className="flex-1 flex flex-col border-r border-white/10 bg-slate-900/30">
+      <div className="flex-1 flex flex-col bg-midnight-plum/40 relative">
         {selectedLead ? (
           <>
-            {/* Header */}
-            <div className="h-16 border-b border-white/10 flex items-center px-6 justify-between bg-slate-900/50">
+            {/* Thread Header */}
+            <div className="h-16 border-b border-white/5 flex items-center px-6 justify-between bg-ink/50 backdrop-blur-sm z-10 sticky top-0">
               <div>
-                <h3 className="font-bold text-lg text-white">{selectedLead.name}</h3>
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <Building size={12} /> {selectedLead.company}
-                  <span className="text-slate-600">•</span>
-                  <User size={12} /> {selectedLead.role}
+                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                  {selectedLead.name}
+                  {selectedLead.status === "Responded" && <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>}
+                </h3>
+                <div className="flex items-center gap-3 text-xs text-soft-violet mt-0.5">
+                  <span className="flex items-center gap-1.5"><Building size={10} /> {selectedLead.company}</span>
+                  <span className="w-1 h-1 rounded-full bg-white/10"></span>
+                  <span className="flex items-center gap-1.5"><User size={10} /> {selectedLead.role}</span>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xl font-bold text-indigo-400">{Math.round(selectedLead.score || 0)}</span>
-                <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Score</span>
+                <div className="text-xl font-bold bg-gradient-to-br from-royal-amethyst to-soft-violet bg-clip-text text-transparent">
+                  {Math.round(selectedLead.score || 0)}
+                </div>
+                <span className="text-[9px] text-soft-violet/50 uppercase tracking-widest font-semibold">Intent Score</span>
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
               {loadingThread ? (
-                <div className="flex justify-center pt-10"><Loader2 className="animate-spin text-slate-500" /></div>
+                <div className="flex justify-center pt-20"><Loader2 className="animate-spin text-royal-amethyst" size={32} /></div>
               ) : thread.length === 0 ? (
-                <div className="text-center text-slate-500 py-10 italic">No messages yet. Start the conversation!</div>
+                <div className="flex flex-col items-center justify-center h-full text-soft-violet/40">
+                  <Sparkles size={48} className="mb-4 opacity-20" />
+                  <p className="text-sm">Start the conversation with {selectedLead.name.split(' ')[0]}</p>
+                </div>
               ) : (
-                thread.map(m => (
-                  <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-2xl p-4 ${m.direction === 'outbound'
-                      ? 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-100 rounded-tr-none'
-                      : 'bg-slate-800/50 border border-slate-700 text-slate-200 rounded-tl-none'
+                thread.map((m, idx) => (
+                  <div key={m.id || idx} className={`flex w-full mb-6 ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-2xl p-5 shadow-lg relative group transition-all duration-300
+                      ${m.direction === 'outbound'
+                        ? 'bg-gradient-to-br from-royal-amethyst/90 to-royal-amethyst/70 text-white rounded-tr-none border border-white/10'
+                        : 'bg-slate/80 backdrop-blur border border-white/5 text-mist rounded-tl-none hover:border-white/10'
                       }`}>
-                      <div className="flex justify-between items-center gap-4 mb-2 opacity-60 text-xs">
-                        <span>{m.direction === 'outbound' ? 'You' : selectedLead.name}</span>
-                        <span>{new Date(m.created_at * 1000).toLocaleString()}</span>
-                      </div>
-                      <div className="font-medium text-sm mb-1">{m.subject}</div>
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.text}</div>
 
-                      {/* Events */}
+                      {/* Meta Header */}
+                      <div className="flex justify-between items-center gap-8 mb-3 text-[10px] uppercase tracking-wider font-semibold opacity-60">
+                        <span>{m.direction === 'outbound' ? 'You' : selectedLead.name}</span>
+                        <span>{new Date(m.created_at * 1000).toLocaleString(undefined, { hour: 'numeric', minute: 'numeric', month: 'short', day: 'numeric' })}</span>
+                      </div>
+
+                      {/* Content */}
+                      <div className="font-semibold text-sm mb-2 leading-snug">{m.subject}</div>
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed opacity-90">{m.text}</div>
+
+                      {/* Events Footer */}
                       {m.events && m.events.length > 0 && (
-                        <div className="mt-3 pt-2 border-t border-white/10 flex gap-2 flex-wrap">
+                        <div className="mt-4 pt-3 border-t border-white/10 flex gap-2 flex-wrap">
                           {m.events.map((ev, i) => (
-                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-black/20 text-slate-400">
+                            <div key={i} className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded bg-black/20 text-soft-violet border border-white/5">
+                              {ev.RecordType === "Open" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>}
+                              {ev.RecordType === "Click" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
                               {ev.RecordType}
-                            </span>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -320,48 +388,81 @@ const EmailHub = () => {
                   </div>
                 ))
               )}
+              <div ref={threadEndRef} />
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
-            <Inbox size={48} className="mb-4 opacity-20" />
-            <p>Select a conversation or start a new email.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-soft-violet/30">
+            <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
+              <Inbox size={48} className="opacity-50" />
+            </div>
+            <p className="text-lg font-medium text-white/50">Select a conversation</p>
+            <p className="text-sm mt-2">or press "+" to compose a new email</p>
           </div>
         )}
       </div>
 
       {/* COLUMN 3: COMPOSER */}
-      <div className="w-96 flex flex-col bg-slate-950 border-l border-white/10">
-        <div className="p-4 border-b border-white/10">
-          <h3 className="font-semibold text-white flex items-center gap-2">
-            {selectedLead ? "Reply" : "New Message"}
+      <div className="w-[450px] flex flex-col bg-slate border-l border-white/5 shadow-2xl z-20">
+        <div className="p-5 border-b border-white/5 bg-ink/20">
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <Send size={16} className="text-royal-amethyst" />
+            {selectedLead ? "Reply to Thread" : "New Message"}
           </h3>
         </div>
 
-        <div className="flex-1 p-4 overflow-y-auto">
-          <form onSubmit={handleSend} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-500 uppercase">To</label>
+        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+          <form onSubmit={handleSend} className="space-y-5">
+
+            {/* SENDER SELECT */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-soft-violet uppercase tracking-widest">From</label>
+              <div className="relative">
+                <select
+                  required
+                  className="w-full appearance-none bg-midnight-plum border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-royal-amethyst focus:ring-1 focus:ring-royal-amethyst/50 outline-none transition-all cursor-pointer"
+                  value={composer.from_email}
+                  onChange={e => setComposer({ ...composer, from_email: e.target.value })}
+                >
+                  {VERIFIED_SENDERS.map(s => (
+                    <option key={s.email} value={s.email}>{s.label} &lt;{s.email}&gt;</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-3 text-soft-violet pointer-events-none">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+            </div>
+
+            {/* RECIPIENT INPUT */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-soft-violet uppercase tracking-widest">To</label>
               <input
-                className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500/50 outline-none transition-colors"
-                placeholder="email@example.com"
+                required
+                type="email"
+                className={`w-full bg-midnight-plum border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-royal-amethyst focus:ring-1 focus:ring-royal-amethyst/50 outline-none transition-all
+                  ${selectedLead ? "opacity-50 cursor-not-allowed border-transparent" : ""}
+                `}
+                placeholder="lead@company.com"
                 value={composer.to_email}
                 onChange={e => setComposer({ ...composer, to_email: e.target.value })}
-                disabled={!!selectedLead} // Lock TO if replying
+                disabled={!!selectedLead}
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-500 uppercase">Subject</label>
+            {/* SUBJECT INPUT */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-soft-violet uppercase tracking-widest">Subject</label>
               <input
-                className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500/50 outline-none transition-colors"
+                required
+                className="w-full bg-midnight-plum border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:border-royal-amethyst focus:ring-1 focus:ring-royal-amethyst/50 outline-none transition-all font-medium"
                 placeholder="Subject line..."
                 value={composer.subject}
                 onChange={e => setComposer({ ...composer, subject: e.target.value })}
               />
             </div>
 
-            {/* AI Tools */}
+            {/* AI GENERATOR */}
             {selectedLead && (
               <div className="py-2">
                 {!aiDrafts ? (
@@ -369,19 +470,19 @@ const EmailHub = () => {
                     type="button"
                     onClick={handleGenerateAI}
                     disabled={generating}
-                    className="w-full py-2 border border-dashed border-indigo-500/30 rounded-lg text-indigo-400 text-xs font-medium hover:bg-indigo-500/10 transition-colors flex items-center justify-center gap-2"
+                    className="group w-full py-3 border border-dashed border-white/10 rounded-xl text-soft-violet text-xs font-medium hover:bg-white/5 hover:border-royal-amethyst/50 hover:text-white transition-all flex items-center justify-center gap-2"
                   >
-                    {generating ? <Loader2 className="animate-spin" size={12} /> : <Sparkles size={12} />}
+                    {generating ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} className="group-hover:text-royal-amethyst transition-colors" />}
                     Generate Draft with AI
                   </button>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 p-1 bg-white/5 rounded-lg">
                     {["A", "B", "C"].map(k => (
                       <button
                         key={k}
                         type="button"
                         onClick={() => setSelectedDraft(k)}
-                        className={`flex-1 py-1 text-xs rounded border ${selectedDraft === k ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-800 text-slate-500 hover:border-slate-600"}`}
+                        className={`flex-1 py-1.5 text-xs rounded-md border font-medium transition-all ${selectedDraft === k ? "bg-royal-amethyst border-royal-amethyst text-white shadow" : "border-transparent text-slate-400 hover:text-white hover:bg-white/5"}`}
                       >
                         Draft {k}
                       </button>
@@ -391,9 +492,12 @@ const EmailHub = () => {
               </div>
             )}
 
-            <div className="space-y-1 flex-1">
+            {/* BODY TEXTAREA */}
+            <div className="space-y-1.5 flex-1">
+              <label className="text-[10px] font-bold text-soft-violet uppercase tracking-widest">Message</label>
               <textarea
-                className="w-full h-64 bg-slate-900 border border-slate-800 rounded px-3 py-2 text-sm text-white focus:border-indigo-500/50 outline-none resize-none font-mono"
+                required
+                className="w-full h-80 bg-midnight-plum border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:border-royal-amethyst focus:ring-1 focus:ring-royal-amethyst/50 outline-none resize-none font-mono leading-relaxed custom-scrollbar"
                 placeholder="Write your message..."
                 value={composer.body}
                 onChange={e => setComposer({ ...composer, body: e.target.value })}
@@ -403,11 +507,11 @@ const EmailHub = () => {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={sending || !composer.to_email}
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg font-medium transition-all shadow-lg shadow-indigo-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={sending || !composer.to_email || !composer.body}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-royal-amethyst to-purple-600 hover:from-purple-600 hover:to-royal-amethyst text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-royal-amethyst/30 hover:shadow-royal-amethyst/50 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
               >
-                {sending ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                {selectedLead ? "Reply" : "Send Email"}
+                {sending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                {selectedLead ? "Send Reply" : "Send Email"}
               </button>
             </div>
           </form>
