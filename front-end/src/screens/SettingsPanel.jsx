@@ -29,7 +29,7 @@ export default function SettingsPanel() {
                     <SettingsRow
                         icon={<User size={20} />}
                         label="My Profile"
-                        subLabel="Serafim P. • serafim@connecttr.com"
+                        subLabel="Ayush D. • ayushd@connecttr.com"
                     />
                     <SettingsRow
                         icon={<LogOut size={20} />}
@@ -75,7 +75,7 @@ export default function SettingsPanel() {
                         <Info size={14} />
                         <span>Connecttr V1.2.0 (Stable)</span>
                     </div>
-                    <p>Made with 💜 by the Connecttr Team</p>
+                    <p>Made with 💜 by the Connecttr Team in Los Angeles, CA</p>
                 </div>
 
             </div>
@@ -98,8 +98,8 @@ const SettingsRow = ({ icon, label, subLabel, badge, danger }) => (
     <button className={`w-full flex items-center justify-between p-4 transition-colors border-b border-white/5 last:border-0 hover:bg-lilac-mist/5 group`}>
         <div className="flex items-center gap-4">
             <div className={`p-2 rounded-xl transition-colors ${danger
-                    ? 'bg-rose-500/10 text-rose-400 group-hover:bg-rose-500/20'
-                    : 'bg-white/5 text-soft-violet group-hover:bg-royal-amethyst/20 group-hover:text-royal-amethyst'
+                ? 'bg-rose-500/10 text-rose-400 group-hover:bg-rose-500/20'
+                : 'bg-white/5 text-soft-violet group-hover:bg-royal-amethyst/20 group-hover:text-royal-amethyst'
                 }`}>
                 {icon}
             </div>
