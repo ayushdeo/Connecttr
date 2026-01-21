@@ -78,7 +78,7 @@ async def auth_callback_google(request: Request):
         "email": email,
         "name": name,
         "picture": picture,
-        "google_id": google_id,
+        "provider_user_id": google_id,
         "role": "user",  # Default role
         # Retain existing fields if updating
     }
