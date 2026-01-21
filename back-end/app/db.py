@@ -32,3 +32,7 @@ def get_emails_collection():
 
 def get_campaigns_collection():
     return get_database()["campaigns"]
+
+def get_users_collection():
+    return get_database()["users"]
+

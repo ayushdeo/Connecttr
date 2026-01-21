@@ -3,6 +3,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import time, uuid, os
 from app.db import get_campaigns_collection
+from fastapi import Depends
+from app.api.auth import get_current_user
+from app.models.user_model import UserInDB
 
 store_router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -19,7 +22,7 @@ class CampaignOut(BaseModel):
     created_at: float
 
 @store_router.post("", response_model=CampaignOut)
-def create_campaign(payload: CampaignCreateIn):
+def create_campaign(payload: CampaignCreateIn, current_user: UserInDB = Depends(get_current_user)):
     collection = get_campaigns_collection()
     cid = uuid.uuid4().hex[:12]
     item = {
@@ -36,7 +39,7 @@ def create_campaign(payload: CampaignCreateIn):
     return item
 
 @store_router.get("", response_model=list[CampaignOut])
-def list_campaigns():
+def list_campaigns(current_user: UserInDB = Depends(get_current_user)):
     collection = get_campaigns_collection()
     campaigns = []
     for doc in collection.find():
@@ -46,7 +49,7 @@ def list_campaigns():
     return campaigns
 
 @store_router.get("/{cid}", response_model=CampaignOut)
-def get_campaign(cid: str):
+def get_campaign(cid: str, current_user: UserInDB = Depends(get_current_user)):
     collection = get_campaigns_collection()
     # match by id string
     camp = collection.find_one({"id": cid})

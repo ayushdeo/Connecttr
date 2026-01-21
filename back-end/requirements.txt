@@ -11,3 +11,10 @@ python-dotenv
 email-validator
 pydantic
 pymongo
+python-jose[cryptography]
+python-multipart
+passlib
+bcrypt
+httpx
+Authlib
+itsdangerous

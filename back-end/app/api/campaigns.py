@@ -6,6 +6,10 @@ from app.services.company_analyzer import analyze_company_brief
 from app.api.campaign_store import get_campaign_by_id  # adjust import to your store file
 from app.services.lead_discovery import discover_from_brief
 from app.services.contact_enricher import enrich_leads_with_email
+from app.services.email_service import upsert_leads_to_hub
+from fastapi import Depends
+from app.api.auth import get_current_user
+from app.models.user_model import UserInDB
 import os, time, requests, traceback
 from fastapi import APIRouter, HTTPException
 
@@ -22,7 +26,7 @@ else:
     EMAILHUB_URL = "http://127.0.0.1:8000"
 
 @router.post("/{campaign_id}/discover")
-def campaign_discover(campaign_id: str, dry_run: bool = False):
+def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: UserInDB = Depends(get_current_user)):
     camp = get_campaign_by_id(campaign_id)
     if not camp:
         raise HTTPException(404, "Campaign not found")
@@ -50,8 +54,8 @@ def campaign_discover(campaign_id: str, dry_run: bool = False):
         return {"mode":"preview","count":len(leads),"took_seconds":took,"preview":leads[:5]}
 
     try:
-        r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads, timeout=60)
-        r.raise_for_status()
+        # Direct service call instead of self-HTTP request to avoid auth issues and overhead
+        upsert_leads_to_hub(leads)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"import failed: {e}")
@@ -74,7 +78,7 @@ class AnalyzeOut(BaseModel):
     fallback_needed: bool
 
 @router.post("/analyze", response_model=AnalyzeOut)
-def analyze(input: AnalyzeIn):
+def analyze(input: AnalyzeIn, current_user: UserInDB = Depends(get_current_user)):
     text_source = ""
     mode = "prompt"
     if input.website:

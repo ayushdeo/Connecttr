@@ -13,7 +13,6 @@ import {
   MoreHorizontal,
   MailOpen,
   MousePointer2,
-  Reply,
   AlertCircle
 } from "lucide-react";
 
@@ -192,7 +191,7 @@ const EmailHub = () => {
   const loadLeads = async () => {
     setLoadingLeads(true);
     try {
-      const r = await fetch(`${API}/emailhub/leads`);
+      const r = await fetch(`${API}/emailhub/leads`, { credentials: 'include' });
       const data = await r.json();
       setLeads(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -212,7 +211,7 @@ const EmailHub = () => {
     const fetchThread = async () => {
       setLoadingThread(true);
       try {
-        const r = await fetch(`${API}/emailhub/threads/${selectedLead.id}`);
+        const r = await fetch(`${API}/emailhub/threads/${selectedLead.id}`, { credentials: 'include' });
         const data = await r.json();
         setThread(data.messages || []);
 
@@ -256,6 +255,7 @@ const EmailHub = () => {
       const r = await fetch(`${API}/emailhub/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           lead_id: selectedLead.id,
           campaign_id: selectedLead.campaign_id || "default",
@@ -308,6 +308,7 @@ const EmailHub = () => {
       const r = await fetch(`${API}/emailhub/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
 
@@ -321,7 +322,7 @@ const EmailHub = () => {
       } else {
         setComposer(prev => ({ ...prev, body: "" }));
         // Background refresh
-        const rThread = await fetch(`${API}/emailhub/threads/${selectedLead.id}`);
+        const rThread = await fetch(`${API}/emailhub/threads/${selectedLead.id}`, { credentials: 'include' });
         const dThread = await rThread.json();
         setThread(dThread.messages || []);
       }

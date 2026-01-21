@@ -12,7 +12,7 @@ export default function DashboardHome({ onNavigate }) {
   useEffect(() => {
     // Fetch all leads to compute stats locally
     // In a real large-scale app, you'd want a dedicated /stats endpoint.
-    fetch(`${API}/emailhub/leads`)
+    fetch(`${API}/emailhub/leads`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (!Array.isArray(data)) return;

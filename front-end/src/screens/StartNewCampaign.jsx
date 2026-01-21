@@ -14,6 +14,7 @@ const StartNewCampaign = ({ onNext }) => {
       const res = await fetch(`${API}/campaigns/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ website: website || null })
       });
       const data = await res.json();

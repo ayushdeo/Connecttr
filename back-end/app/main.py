@@ -18,6 +18,16 @@ FRONTEND_ORIGINS = [
 ]
 ALLOWED_ORIGINS = [o for o in FRONTEND_ORIGINS if o]
 
+from starlette.middleware.sessions import SessionMiddleware
+from app.core.security import SECRET_KEY
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    https_only=True, # Will be ignored on localhost usually, but good for prod
+    max_age=3600
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -30,6 +40,10 @@ app.add_middleware(
 app.include_router(campaigns_router)
 app.include_router(campaign_store_router)
 app.include_router(emailhub_router)
+
+from app.api.auth import router as auth_router
+app.include_router(auth_router)
+
 
 from app.api.pipeline import router as pipeline_router
 app.include_router(pipeline_router)
