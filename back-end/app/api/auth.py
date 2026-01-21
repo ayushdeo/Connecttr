@@ -18,6 +18,8 @@ oauth = OAuth(config)
 
 oauth.register(
     name='google',
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_kwargs={
         'scope': 'openid email profile',
@@ -35,6 +37,7 @@ async def login_google(request: Request):
     # Create the redirect URI
     redirect_uri = request.url_for('auth_callback_google')
     print(f"DEBUG: Redirecting to Google with callback: {redirect_uri}")
+    print(f"DEBUG: GOOGLE_CLIENT_ID: {os.getenv('GOOGLE_CLIENT_ID')}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -97,13 +100,15 @@ async def auth_callback_google(request: Request):
     
     # 5. Redirect to Frontend with Cookie
     frontend_url = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-    response = RedirectResponse(url=frontend_url)
+    response = RedirectResponse(url=f"{frontend_url}/email-hub")
     
+    secure = request.url.scheme == "https"
+
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,  # Set to True in Production (managed by logic usually, but strict True requires HTTPS)
+        secure=secure,  # Set based on request scheme
         samesite="lax",
         max_age=30 * 24 * 60 * 60  # 30 Days
     )
