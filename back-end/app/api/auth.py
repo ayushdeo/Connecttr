@@ -34,8 +34,12 @@ async def login_google(request: Request):
     """
     Redirects user to Google Login page.
     """
-    # Create the redirect URI
-    redirect_uri = request.url_for('auth_callback_google')
+    # Create the redirect URI using env var
+    backend_url = os.getenv('BACKEND_PUBLIC_URL')
+    if not backend_url:
+        raise HTTPException(status_code=500, detail="BACKEND_PUBLIC_URL not configured")
+    
+    redirect_uri = f"{backend_url.rstrip('/')}/auth/callback/google"
     print(f"DEBUG: Redirecting to Google with callback: {redirect_uri}")
     print(f"DEBUG: GOOGLE_CLIENT_ID: {os.getenv('GOOGLE_CLIENT_ID')}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -63,7 +67,8 @@ async def auth_callback_google(request: Request):
         print(f"OAuth Error: {e}")
         # Redirect to frontend login with error
         return RedirectResponse(
-            url=f"{os.getenv('FRONTEND_ORIGIN', 'http://localhost:3000')}/login?error=oauth_failed"
+        return RedirectResponse(
+            url=f"{os.getenv('FRONTEND_ORIGIN')}/login?error=oauth_failed"
         )
     
     # 2. Extract Data
@@ -99,8 +104,11 @@ async def auth_callback_google(request: Request):
     access_token = create_access_token(subject=user_id)
     
     # 5. Redirect to Frontend with Cookie
-    frontend_url = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-    response = RedirectResponse(url=f"{frontend_url}/email-hub")
+    frontend_url = os.getenv("FRONTEND_ORIGIN")
+    if not frontend_url:
+         raise HTTPException(status_code=500, detail="FRONTEND_ORIGIN not configured")
+         
+    response = RedirectResponse(url=f"{frontend_url.rstrip('/')}/email-hub")
     
     secure = request.url.scheme == "https"
 
@@ -179,6 +187,8 @@ async def get_current_user(request: Request) -> UserInDB:
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
         
-    # Convert _id to id
+    # Convert _id to id and remove _id (ObjectId is not serializable)
     user["id"] = str(user["_id"])
+    if "_id" in user:
+        del user["_id"]
     return user
