@@ -5,8 +5,10 @@ import {
     Briefcase,
     Inbox,
     BarChart2,
-    Settings
+    Settings,
+    LogOut
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 const navItems = [
     { page: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
@@ -18,6 +20,8 @@ const navItems = [
 ];
 
 const AppSidebar = ({ activePage, setActivePage }) => {
+    const { user, logout } = useAuth();
+
     return (
         <aside className="w-64 flex-shrink-0 flex flex-col z-20 bg-midnight-plum/90 backdrop-blur-md border-r border-white/10 shadow-2xl h-screen sticky top-0 transition-all duration-300">
 
@@ -56,14 +60,28 @@ const AppSidebar = ({ activePage, setActivePage }) => {
             </nav>
 
             {/* User Footer */}
-            <div className="p-4 border-t border-white/10">
-                <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group">
-                    <div className="w-10 h-10 rounded-full bg-slate border border-royal-amethyst flex items-center justify-center shadow-lg group-hover:shadow-royal-amethyst/20 transition-all">
-                        <span className="text-white font-bold text-sm">AD</span>
-                    </div>
-                    <div>
-                        <p className="font-semibold text-white text-sm">Ayush A. Deo</p>
-                        <p className="text-xs text-soft-violet">Founder</p>
+            <div className="p-4 border-t border-white/10 space-y-2">
+                {/* Logout Button */}
+                <button
+                    onClick={logout}
+                    className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-soft-violet hover:bg-red-500/10 hover:text-red-400 transition-colors duration-200"
+                >
+                    <LogOut size={18} />
+                    <span className="text-sm font-medium">Sign Out</span>
+                </button>
+
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-white/5 transition-colors group">
+                    {user?.picture ? (
+                        <img src={user.picture} alt="Profile" className="w-10 h-10 rounded-full border border-royal-amethyst shadow-lg" />
+                    ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate border border-royal-amethyst flex items-center justify-center shadow-lg group-hover:shadow-royal-amethyst/20 transition-all">
+                            <span className="text-white font-bold text-sm">{user?.name ? user.name.charAt(0).toUpperCase() : "U"}</span>
+                        </div>
+                    )}
+
+                    <div className="overflow-hidden">
+                        <p className="font-semibold text-white text-sm truncate">{user?.name || "User"}</p>
+                        <p className="text-xs text-soft-violet truncate">{user?.email || "No Email"}</p>
                     </div>
                 </div>
             </div>

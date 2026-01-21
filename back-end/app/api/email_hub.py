@@ -12,6 +12,10 @@ from app.services.postmark_client import PostmarkError
 import logging
 log = logging.getLogger("uvicorn")
 
+from fastapi import Depends
+from app.api.auth import get_current_user
+from app.models.user_model import UserInDB
+
 # ---- models
 class Lead(BaseModel):
     id: str
@@ -39,7 +43,7 @@ class SendReq(BaseModel):
 
 # ---- leads
 @router.get("/leads")
-def list_leads():
+def list_leads(current_user: UserInDB = Depends(get_current_user)):
     # Return all leads from MongoDB that have been imported (or all of them?)
     # The original logic segregated leads in email_db.json. 
     # Now valid leads are in the 'leads' collection.
@@ -57,7 +61,7 @@ def list_leads():
 from app.services.email_service import upsert_leads_to_hub
 
 @router.post("/leads/import")
-def import_leads(items: List[Lead]):
+def import_leads(items: List[Lead], current_user: UserInDB = Depends(get_current_user)):
     # Convert Pydantic models to dicts
     data = [l.dict() for l in items]
     count = upsert_leads_to_hub(data)
@@ -65,7 +69,7 @@ def import_leads(items: List[Lead]):
 
 # ---- templates (LLM)
 @router.post("/templates")
-def make_templates(body: TemplateReq):
+def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_current_user)):
     collection = get_leads_collection()
     # match by 'id' field (string) or '_id'
     lead = collection.find_one({"id": body.lead_id})
@@ -89,7 +93,7 @@ def make_templates(body: TemplateReq):
 
 # ---- send via Postmark
 @router.post("/send")
-def send_email(body: SendReq):
+def send_email(body: SendReq, current_user: UserInDB = Depends(get_current_user)):
     leads_col = get_leads_collection()
     emails_col = get_emails_collection()
 
@@ -191,7 +195,7 @@ def send_email(body: SendReq):
 
 # ---- thread
 @router.get("/threads/{lead_id}")
-def thread(lead_id: str):
+def thread(lead_id: str, current_user: UserInDB = Depends(get_current_user)):
     emails_col = get_emails_collection()
     cursor = emails_col.find({"lead_id": lead_id}).sort("created_at", 1)
     msgs = []

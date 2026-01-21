@@ -128,7 +128,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     setShowLoading(true);
     setLoadingDone(false);
     try {
-      const r = await fetch(`${API}/campaigns/${c.id}/discover`, { method: "POST" });
+      const r = await fetch(`${API}/campaigns/${c.id}/discover`, { method: "POST", credentials: 'include' });
       if (!r.ok) {
         throw new Error(`Discover failed (${r.status})`);
       }
@@ -149,7 +149,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     setShowLoading(true);
     setLoadingDone(false);
     try {
-      const r = await fetch(`${API}/campaigns/${current.id}/discover`, { method: "POST" });
+      const r = await fetch(`${API}/campaigns/${current.id}/discover`, { method: "POST", credentials: 'include' });
       if (!r.ok) {
         throw new Error(`Discover failed (${r.status})`);
       }
@@ -165,7 +165,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
   }
 
   useEffect(() => {
-    fetch(`${API}/campaigns`)
+    fetch(`${API}/campaigns`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(data => setCampaigns(Array.isArray(data) ? data : []))
       .catch(() => setCampaigns([]));
@@ -189,6 +189,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
       const res = await fetch(`${API}/campaigns`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ name, website, brief })
       });
       if (!res.ok) throw new Error("Failed to save");

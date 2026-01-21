@@ -14,6 +14,7 @@ const EnterKeywords = ({ website, onBack, onReady }) => {
       const res = await fetch(`${API}/campaigns/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ prompt: description, website: website || null })
       });
       const data = await res.json();

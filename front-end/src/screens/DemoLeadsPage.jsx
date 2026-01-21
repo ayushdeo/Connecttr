@@ -11,7 +11,7 @@ export default function DemoLeadsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${API}/emailhub/leads`);
+        const r = await fetch(`${API}/emailhub/leads`, { credentials: 'include' });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         setLeads(Array.isArray(data) ? data : []);
