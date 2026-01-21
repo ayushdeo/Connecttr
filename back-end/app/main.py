@@ -2,6 +2,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from dotenv import load_dotenv
+
+# Explicitly load the apiKey.env file
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'apiKey.env')
+load_dotenv(env_path)
+
 
 from app.api.campaigns import router as campaigns_router
 from app.api.campaign_store import campaign_store_router
