@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 
-# Explicitly load the apiKey.env file
-env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'apiKey.env')
+# Explicitly load the .env file
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
 load_dotenv(env_path)
 
 
