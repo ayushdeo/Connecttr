@@ -67,7 +67,6 @@ async def auth_callback_google(request: Request):
         print(f"OAuth Error: {e}")
         # Redirect to frontend login with error
         return RedirectResponse(
-        return RedirectResponse(
             url=f"{os.getenv('FRONTEND_ORIGIN')}/login?error=oauth_failed"
         )
     
