@@ -8,6 +8,7 @@ class UserBase(BaseModel):
     picture: Optional[str] = None
     provider: str = "google"  # oauth provider
     role: str = "user"        # user, admin
+    org_id: Optional[str] = None
     is_active: bool = True
 
 class UserCreate(UserBase):

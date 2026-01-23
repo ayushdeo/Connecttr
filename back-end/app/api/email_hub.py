@@ -13,7 +13,7 @@ import logging
 log = logging.getLogger("uvicorn")
 
 from fastapi import Depends
-from app.api.auth import get_current_user
+from app.core.deps import get_current_user_with_org
 from app.models.user_model import UserInDB
 
 # ---- models
@@ -43,7 +43,7 @@ class SendReq(BaseModel):
 
 # ---- leads
 @router.get("/leads")
-def list_leads(current_user: UserInDB = Depends(get_current_user)):
+def list_leads(current_user: UserInDB = Depends(get_current_user_with_org)):
     # Return all leads from MongoDB that have been imported (or all of them?)
     # The original logic segregated leads in email_db.json. 
     # Now valid leads are in the 'leads' collection.
@@ -61,7 +61,7 @@ def list_leads(current_user: UserInDB = Depends(get_current_user)):
 from app.services.email_service import upsert_leads_to_hub
 
 @router.post("/leads/import")
-def import_leads(items: List[Lead], current_user: UserInDB = Depends(get_current_user)):
+def import_leads(items: List[Lead], current_user: UserInDB = Depends(get_current_user_with_org)):
     # Convert Pydantic models to dicts
     data = [l.dict() for l in items]
     count = upsert_leads_to_hub(data)
@@ -69,7 +69,7 @@ def import_leads(items: List[Lead], current_user: UserInDB = Depends(get_current
 
 # ---- templates (LLM)
 @router.post("/templates")
-def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_current_user)):
+def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_current_user_with_org)):
     collection = get_leads_collection()
     # match by 'id' field (string) or '_id'
     lead = collection.find_one({"id": body.lead_id})
@@ -92,10 +92,18 @@ def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_curre
     return {"lead": lead_out, "templates": tpl}
 
 # ---- send via Postmark
+from app.core.limiter import limiter
+
 @router.post("/send")
-def send_email(body: SendReq, current_user: UserInDB = Depends(get_current_user)):
+@limiter.limit("20/hour")
+def send_email(request: Request, body: SendReq, current_user: UserInDB = Depends(get_current_user_with_org)):
+    # Note: Added 'request: Request' because slowapi needs it for key_func
     leads_col = get_leads_collection()
     emails_col = get_emails_collection()
+    
+    # ABUSE PROTECTION: Daily Cap
+    from app.services.email_service import check_send_limits
+    check_send_limits(current_user.id, current_user.org_id, limit=50)
 
     # MANUAL SEND LOGIC
     if body.campaign_id == "default":
@@ -195,7 +203,7 @@ def send_email(body: SendReq, current_user: UserInDB = Depends(get_current_user)
 
 # ---- thread
 @router.get("/threads/{lead_id}")
-def thread(lead_id: str, current_user: UserInDB = Depends(get_current_user)):
+def thread(lead_id: str, current_user: UserInDB = Depends(get_current_user_with_org)):
     emails_col = get_emails_collection()
     cursor = emails_col.find({"lead_id": lead_id}).sort("created_at", 1)
     msgs = []

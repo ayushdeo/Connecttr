@@ -1,6 +1,38 @@
-from app.db import get_leads_collection
+from app.db import get_leads_collection, get_database, get_audit_collection
+from fastapi import HTTPException
+from datetime import datetime
 
-def upsert_leads_to_hub(leads_data: list[dict]) -> int:
+def check_send_limits(user_id: str, org_id: str, limit: int = 50):
+    """
+    Abuse Protection: Enforce daily send limits.
+    """
+    db = get_database()
+    usage_col = db["usage_stats"]
+    
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    key = f"emails:{org_id}:{user_id}:{today_str}"
+    
+    # Atomic increment
+    res = usage_col.find_one_and_update(
+        {"_id": key},
+        {"$inc": {"count": 1}, "$setOnInsert": {"org_id": org_id, "user_id": user_id, "date": today_str}},
+        upsert=True,
+        return_document=True
+    )
+    
+    if res["count"] > limit:
+        # Audit Log violation
+        get_audit_collection().insert_one({
+            "org_id": org_id,
+            "user_id": user_id,
+            "action": "limit_exceeded",
+            "resource": "email",
+            "metadata": {"limit": limit, "count": res["count"]},
+            "timestamp": datetime.utcnow()
+        })
+        raise HTTPException(status_code=429, detail=f"Daily email limit reached ({limit}/day).")
+
+def upsert_leads_to_hub(leads_data: list[dict], org_id: str = None) -> int:
     """
     Directly inserts/updates leads in MongoDB 'leads' collection
     following Email Hub logic (upsert by id/email).
@@ -11,11 +43,6 @@ def upsert_leads_to_hub(leads_data: list[dict]) -> int:
     
     for lead_dict in leads_data:
         # Determine unique key: id or email
-        # The logic in email_hub.py was:
-        # existing = {(l["id"], l["email"]) for l in db["leads"]}
-        # This is a bit loose.
-        # Let's standardize: Upsert by 'id' if present, else 'email'.
-        
         filter_q = {}
         if lead_dict.get("id"):
             filter_q["id"] = lead_dict["id"]
@@ -24,10 +51,15 @@ def upsert_leads_to_hub(leads_data: list[dict]) -> int:
         else:
             continue # skip invalid
             
-        # We want to merge fields, not overwrite perfectly? 
-        # API says "import", usually implies create or update.
-        # We'll use $set to update provided fields.
-        
+        # SAAS SAFETY: If updating existing, verify org_id matches!
+        # Ideally, we scope query by org_id.
+        if org_id:
+            filter_q["org_id"] = org_id
+            
+        # Inject org_id into data
+        if org_id:
+            lead_dict["org_id"] = org_id
+            
         if "status" not in lead_dict:
             lead_dict["status"] = "New"
 

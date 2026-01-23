@@ -36,3 +36,12 @@ def get_campaigns_collection():
 def get_users_collection():
     return get_database()["users"]
 
+def get_orgs_collection():
+    return get_database()["organizations"]
+
+def get_audit_collection():
+    return get_database()["audit_logs"]
+
+def get_sessions_collection():
+    return get_database()["sessions"]
+
