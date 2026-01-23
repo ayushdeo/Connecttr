@@ -50,7 +50,7 @@ async def login_google(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
-from app.db import get_users_collection, get_orgs_collection, get_audit_collection, get_sessions_collection
+from app.db import get_users_collection, get_orgs_collection, get_audit_collection, get_sessions_collection, get_invites_collection
 from app.models.org_model import Organization
 import time
 import secrets
@@ -88,55 +88,67 @@ async def auth_callback_google(request: Request):
     # 3. Upsert User & Organization Logic
     users_coll = get_users_collection()
     orgs_coll = get_orgs_collection()
+    invites_coll = get_invites_collection()
     
     existing_user = users_coll.find_one({"email": email})
     
     if existing_user:
         user_id = str(existing_user["_id"])
-        # Check if user has org_id, if not (legacy user), we might need to migrate or create one.
-        # Ideally migration script runs first, but as a fallback:
+        # Check if user has org_id (legacy fix)
         if "org_id" not in existing_user or not existing_user["org_id"]:
              # Lazy migration for legacy user during login
              new_org = Organization(name=f"{name}'s Org" if name else "My Organization", owner_id=user_id)
              res_org = orgs_coll.insert_one(new_org.dict(exclude={"id"}))
              org_id = str(res_org.inserted_id)
              users_coll.update_one({"_id": existing_user["_id"]}, {"$set": {"org_id": org_id, "role": "owner"}})
-             print(f"Lazy migrated user {user_id} to new org {org_id}")
         
         # Update profile info
         users_coll.update_one({"email": email}, {"$set": {"name": name, "picture": picture, "last_login": datetime.utcnow()}})
         
     else:
-        # New User -> Create User -> Create Org -> Update User with Org
-        # 1. Create User (initially without org_id or we generate ID first?)
-        # Let's insert user first to get ID.
+        # INVITE-ONLY LOGIC
+        # Search for valid invite for this email
+        invite = invites_coll.find_one({
+            "email": email,
+            "status": "pending",
+            "expires_at": {"$gt": datetime.utcnow()}
+        })
+        
+        if not invite:
+            # REJECT
+            return JSONResponse(status_code=403, content={"error": "Access is invite-only. Please contact an administrator."})
+            
+        # Accept Invite
+        org_id = invite["org_id"]
+        role = invite["role"]
+        
+        # Create User
         user_data = {
             "email": email,
             "name": name,
             "picture": picture,
             "provider_user_id": google_id,
-            "role": "owner",
+            "role": role,
+            "org_id": org_id,
             "is_active": True,
             "created_at": datetime.utcnow()
         }
         res_user = users_coll.insert_one(user_data)
         user_id = str(res_user.inserted_id)
         
-        # 2. Create Org
-        new_org = Organization(name=f"{name}'s Org", owner_id=user_id)
-        res_org = orgs_coll.insert_one(new_org.dict(exclude={"id"}))
-        org_id = str(res_org.inserted_id)
-        
-        # 3. Link Org to User
-        users_coll.update_one({"_id": res_user.inserted_id}, {"$set": {"org_id": org_id}})
+        # Update Invite Status
+        invites_coll.update_one(
+            {"_id": invite["_id"]},
+            {"$set": {"status": "accepted", "accepted_at": datetime.utcnow()}}
+        )
         
         # Audit Log
         get_audit_collection().insert_one({
             "org_id": org_id,
             "user_id": user_id,
-            "action": "signup",
+            "action": "invite_accepted",
             "resource": "auth",
-            "metadata": {"provider": "google"},
+            "metadata": {"invite_id": str(invite["_id"])},
             "timestamp": datetime.utcnow()
         })
 

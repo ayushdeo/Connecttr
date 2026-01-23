@@ -83,6 +83,9 @@ app.include_router(emailhub_router)
 from app.api.auth import router as auth_router
 app.include_router(auth_router)
 
+from app.api.orgs import router as orgs_router
+app.include_router(orgs_router)
+
 
 from app.api.pipeline import router as pipeline_router
 app.include_router(pipeline_router)
