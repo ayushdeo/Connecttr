@@ -109,14 +109,16 @@ async def auth_callback_google(request: Request):
          
     response = RedirectResponse(url=f"{frontend_url.rstrip('/')}/email-hub")
     
-    secure = request.url.scheme == "https"
-
+    # PRODUCTION HARDENING:
+    # Always Secure=True in production (we enforced https_only in middleware too).
+    # SameSite=None is required if backend/frontend are on different domains (e.g. onrender subdomains).
+    
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=secure,  # Set based on request scheme
-        samesite="lax",
+        secure=True,        # STRICT: Always True
+        samesite="none",    # STRICT: Required for cross-site (different subdomains)
         max_age=30 * 24 * 60 * 60  # 30 Days
     )
     
