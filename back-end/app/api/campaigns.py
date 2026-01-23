@@ -8,10 +8,12 @@ from app.services.lead_discovery import discover_from_brief
 from app.services.contact_enricher import enrich_leads_with_email
 from app.services.email_service import upsert_leads_to_hub
 from fastapi import Depends
-from app.api.auth import get_current_user
+from app.core.deps import get_current_user_with_org
+from app.db import get_audit_collection
 from app.models.user_model import UserInDB
+from datetime import datetime
 import os, time, requests, traceback
-from fastapi import APIRouter, HTTPException
+
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 _PORT = os.getenv("PORT")                      # Render injects this
@@ -26,8 +28,9 @@ else:
     EMAILHUB_URL = "http://127.0.0.1:8000"
 
 @router.post("/{campaign_id}/discover")
-def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: UserInDB = Depends(get_current_user)):
-    camp = get_campaign_by_id(campaign_id)
+def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: UserInDB = Depends(get_current_user_with_org)):
+    # SAAS ISOLATION: Enforce org_id
+    camp = get_campaign_by_id(campaign_id, org_id=current_user.org_id)
     if not camp:
         raise HTTPException(404, "Campaign not found")
 
@@ -54,8 +57,19 @@ def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: Use
         return {"mode":"preview","count":len(leads),"took_seconds":took,"preview":leads[:5]}
 
     try:
-        # Direct service call instead of self-HTTP request to avoid auth issues and overhead
-        upsert_leads_to_hub(leads)
+        # Pass org_id for insertion
+        upsert_leads_to_hub(leads, org_id=current_user.org_id)
+        
+        # Audit
+        get_audit_collection().insert_one({
+            "org_id": current_user.org_id,
+            "user_id": current_user.id,
+            "action": "discover_leads",
+            "resource": f"campaign/{campaign_id}",
+            "metadata": {"count": len(leads)},
+            "timestamp": datetime.utcnow()
+        })
+        
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"import failed: {e}")
@@ -78,7 +92,7 @@ class AnalyzeOut(BaseModel):
     fallback_needed: bool
 
 @router.post("/analyze", response_model=AnalyzeOut)
-def analyze(input: AnalyzeIn, current_user: UserInDB = Depends(get_current_user)):
+def analyze(input: AnalyzeIn, current_user: UserInDB = Depends(get_current_user_with_org)):
     text_source = ""
     mode = "prompt"
     if input.website:

@@ -25,13 +25,33 @@ from app.api.campaigns import router as campaigns_router
 from app.api.campaign_store import campaign_store_router
 from app.api.email_hub import router as emailhub_router
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
+
 app = FastAPI(title="Connecttr Backend")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- Security Headers Middleware ---
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # HSTS (Production Only)
+    # We can detect protocol or env var. Render sets standard headers too.
+    if os.getenv("RENDER") or os.getenv("X_FORWARDED_PROTO") == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        
+    return response
 
 # --- CORS ---
 # STRICT: Only allow the configured production frontend origin.
 FRONTEND_ORIGINS = [
     FRONTEND_ORIGIN.rstrip("/"),
-    # "http://localhost:3000", # REMOVED for production hardening
 ]
 ALLOWED_ORIGINS = [o for o in FRONTEND_ORIGINS if o]
 

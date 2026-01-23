@@ -18,3 +18,4 @@ bcrypt
 httpx
 Authlib
 itsdangerous
+slowapi

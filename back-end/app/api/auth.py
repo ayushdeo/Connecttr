@@ -8,6 +8,8 @@ from app.models.user_model import UserCreate, UserInDB
 from app.db import get_users_collection
 from app.core.security import create_access_token, SECRET_KEY, ALGORITHM
 from jose import jwt, JWTError
+from datetime import datetime, timedelta
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -29,7 +31,10 @@ oauth.register(
 
 # --- Endpoints ---
 
+from app.core.limiter import limiter
+
 @router.get("/login/google")
+@limiter.limit("5/minute")
 async def login_google(request: Request):
     """
     Redirects user to Google Login page.
@@ -45,11 +50,19 @@ async def login_google(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
+from app.db import get_users_collection, get_orgs_collection, get_audit_collection, get_sessions_collection
+from app.models.org_model import Organization
+import time
+import secrets
+import hashlib
+from app.core.deps import get_current_user # Usage for logout
+
 @router.get("/callback/google", name="auth_callback_google")
+@limiter.limit("5/minute")
 async def auth_callback_google(request: Request):
     """
     Callback for Google OAuth. 
-    Exchanges code for token, upserts user, sets cookie, and redirects to frontend.
+    Exchanges code for token, upserts user, creates Org if needed, issues session.
     """
     try:
         # 1. Exchange code for token
@@ -57,15 +70,11 @@ async def auth_callback_google(request: Request):
         user_info = token.get('userinfo')
         
         if not user_info:
-            # Sometimes userinfo is not in token response, fetch it?
-            # With 'openid' scope and server_metadata_url, authlib usually parses it.
-            # But just in case:
             print("DEBUG: Fetching userinfo manually if missing")
             user_info = await oauth.google.userinfo(token=token)
 
     except Exception as e:
         print(f"OAuth Error: {e}")
-        # Redirect to frontend login with error
         return RedirectResponse(
             url=f"{os.getenv('FRONTEND_ORIGIN')}/login?error=oauth_failed"
         )
@@ -76,30 +85,77 @@ async def auth_callback_google(request: Request):
     name = user_info.get("name")
     picture = user_info.get("picture")
     
-    # 3. Upsert User
+    # 3. Upsert User & Organization Logic
     users_coll = get_users_collection()
-    user_data = {
-        "email": email,
-        "name": name,
-        "picture": picture,
-        "provider_user_id": google_id,
-        "role": "user",  # Default role
-        # Retain existing fields if updating
-    }
+    orgs_coll = get_orgs_collection()
     
     existing_user = users_coll.find_one({"email": email})
     
     if existing_user:
-        users_coll.update_one({"email": email}, {"$set": user_data})
         user_id = str(existing_user["_id"])
+        # Check if user has org_id, if not (legacy user), we might need to migrate or create one.
+        # Ideally migration script runs first, but as a fallback:
+        if "org_id" not in existing_user or not existing_user["org_id"]:
+             # Lazy migration for legacy user during login
+             new_org = Organization(name=f"{name}'s Org" if name else "My Organization", owner_id=user_id)
+             res_org = orgs_coll.insert_one(new_org.dict(exclude={"id"}))
+             org_id = str(res_org.inserted_id)
+             users_coll.update_one({"_id": existing_user["_id"]}, {"$set": {"org_id": org_id, "role": "owner"}})
+             print(f"Lazy migrated user {user_id} to new org {org_id}")
+        
+        # Update profile info
+        users_coll.update_one({"email": email}, {"$set": {"name": name, "picture": picture, "last_login": datetime.utcnow()}})
+        
     else:
-        # Create new
-        new_user = UserCreate(**user_data, updated_at=0) # Add dummy fields to match model if needed
-        res = users_coll.insert_one(user_data)
-        user_id = str(res.inserted_id)
+        # New User -> Create User -> Create Org -> Update User with Org
+        # 1. Create User (initially without org_id or we generate ID first?)
+        # Let's insert user first to get ID.
+        user_data = {
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "provider_user_id": google_id,
+            "role": "owner",
+            "is_active": True,
+            "created_at": datetime.utcnow()
+        }
+        res_user = users_coll.insert_one(user_data)
+        user_id = str(res_user.inserted_id)
+        
+        # 2. Create Org
+        new_org = Organization(name=f"{name}'s Org", owner_id=user_id)
+        res_org = orgs_coll.insert_one(new_org.dict(exclude={"id"}))
+        org_id = str(res_org.inserted_id)
+        
+        # 3. Link Org to User
+        users_coll.update_one({"_id": res_user.inserted_id}, {"$set": {"org_id": org_id}})
+        
+        # Audit Log
+        get_audit_collection().insert_one({
+            "org_id": org_id,
+            "user_id": user_id,
+            "action": "signup",
+            "resource": "auth",
+            "metadata": {"provider": "google"},
+            "timestamp": datetime.utcnow()
+        })
 
-    # 4. Create JWT
-    # We use our own JWT for the session cookie
+    # 4. Session & Token Issuance
+    # Generate Refresh Token
+    refresh_token = secrets.token_urlsafe(64)
+    refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+    
+    # Store Session
+    get_sessions_collection().insert_one({
+        "user_id": user_id,
+        "refresh_token_hash": refresh_token_hash,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(days=30),
+        "user_agent": request.headers.get("user-agent"),
+        "ip": request.client.host if request.client else None
+    })
+    
+    # Create Access Token
     access_token = create_access_token(subject=user_id)
     
     # 5. Redirect to Frontend with Cookie
@@ -109,87 +165,109 @@ async def auth_callback_google(request: Request):
          
     response = RedirectResponse(url=f"{frontend_url.rstrip('/')}/email-hub")
     
-    # PRODUCTION HARDENING:
-    # Always Secure=True in production (we enforced https_only in middleware too).
-    # SameSite=None is required if backend/frontend are on different domains (e.g. onrender subdomains).
-    
+    # STRICT COOKIES
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,        # STRICT: Always True
-        samesite="none",    # STRICT: Required for cross-site (different subdomains)
-        max_age=30 * 24 * 60 * 60  # 30 Days
+        secure=True, 
+        samesite="none",
+        max_age=30 * 60 # Short lived access token (e.g. 30 mins)
+    )
+    
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
     )
     
     return response
 
+@router.post("/refresh")
+async def refresh_token_endpoint(request: Request):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+        
+    token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+    sessions_coll = get_sessions_collection()
+    
+    session = sessions_coll.find_one({"refresh_token_hash": token_hash})
+    if not session:
+        # Potential reuse detection could go here (if using rotating families)
+        response = JSONResponse(content={"message": "Invalid session"}, status_code=401)
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        return response
+        
+    # Rotate Token
+    new_refresh_token = secrets.token_urlsafe(64)
+    new_hash = hashlib.sha256(new_refresh_token.encode()).hexdigest()
+    
+    sessions_coll.update_one(
+        {"_id": session["_id"]},
+        {"$set": {"refresh_token_hash": new_hash, "last_refresh": datetime.utcnow()}}
+    )
+    
+    user_id = session["user_id"]
+    new_access_token = create_access_token(subject=user_id)
+    
+    response = JSONResponse(content={"message": "Token refreshed"})
+    response.set_cookie(
+        key="access_token",
+        value=new_access_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 60 
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=30 * 24 * 60 * 60
+    )
+    return response
 
 @router.get("/me")
 async def read_users_me(request: Request):
-    """
-    Get current user from cookie.
-    We reimplement dependency logic here or use the dependency?
-    Let's use the dependency, but the dependency is in another file?
-    We can inline the dependency logic or import it.
-    Existing endpoints use `Depends(get_current_user)`.
-    Let's use the dependency if we can import it.
-    But `get_current_user` is usually in `dependencies.py` or defined in `auth.py`?
-    Wait, previously `get_current_user` was in `auth.py`. 
-    Ah, I am rewriting this file, so I need to RE-ADD `get_current_user` here so other files can import it!
-    """
     # Re-using the dependency logic below
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return {"user": user}
 
-
 @router.post("/logout")
 async def logout(request: Request):
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+        get_sessions_collection().delete_one({"refresh_token_hash": token_hash})
+        
     response = JSONResponse(content={"message": "Logged out"})
     response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
     return response
 
+# Removed get_current_user implementation from here as it is now in deps.py
+# If any file imports it from here, we need to fix that or re-export it.
+# For backward compatibility within this module (if needed):
+# from app.core.deps import get_current_user
 
-# --- Dependency ---
-# This was in the previous file, so we must expose it for other routers to use!
 
-async def get_current_user(request: Request) -> UserInDB:
-    token = request.cookies.get("access_token")
-    if not token:
-        # Fallback to Authorization header? standard usually supports both
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-    
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-        
-    users_coll = get_users_collection()
-    from bson import ObjectId
-    try:
-        user = users_coll.find_one({"_id": ObjectId(user_id)})
-    except:
-        raise HTTPException(status_code=401, detail="Invalid user ID")
-        
-    if user is None:
-        raise HTTPException(status_code=401, detail="User not found")
-        
-    # Convert _id to id and remove _id (ObjectId is not serializable)
-    user["id"] = str(user["_id"])
-    if "_id" in user:
-        del user["_id"]
-    return user
+# re-export for compatibility if needed, though best to update imports
+from app.core.deps import get_current_user
+
