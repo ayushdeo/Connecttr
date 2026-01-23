@@ -39,6 +39,12 @@ def get_users_collection():
 def get_orgs_collection():
     return get_database()["organizations"]
 
+def get_invites_collection():
+    return get_database()["org_invites"]
+
+def get_alerts_collection():
+    return get_database()["alerts"]
+
 def get_audit_collection():
     return get_database()["audit_logs"]
 
