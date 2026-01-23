@@ -14,6 +14,13 @@ const ProtectedRoute = ({ children }) => {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+    // Safety check for Org ID (Multi-tenant isolation)
+    // Supports both nested {user: {...}} and flat {...} structures for robustness
+    const actualUser = user.user || user;
+    if (!actualUser.org_id) {
+        return <Navigate to="/forbidden" replace />;
+    }
+
     return children;
 };
 
