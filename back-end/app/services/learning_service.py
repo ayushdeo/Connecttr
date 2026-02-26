@@ -22,13 +22,16 @@ def run_reinforcement_tuner(org_id: str):
     lookback_days = 14
     start_date = datetime.utcnow() - timedelta(days=lookback_days)
     
+    from app.core.learning_config import LearningConfig
+    from app.services.model_registry import ModelRegistry
+
     # Meaningful engagement check
     # We count leads that reached 'Sent' status in this org
     sent_leads_q = {"org_id": org_id, "status": {"$in": ["Sent", "Opened", "Clicked", "Responded", "Bounced"]}}
     sent_leads = list(leads_col.find(sent_leads_q))
     
-    if len(sent_leads) < 30:
-        return {"status": "skipped", "reason": f"Insufficient data: {len(sent_leads)} leads found (min 30)"}
+    if len(sent_leads) < LearningConfig.LEARN_MIN_EVENTS:
+        return {"status": "skipped", "reason": f"Insufficient data: {len(sent_leads)} leads found (min {LearningConfig.LEARN_MIN_EVENTS})" }
 
     # observed conversion rate (replies/sent)
     replies = len([l for l in sent_leads if l.get("status") == "Responded"])
@@ -47,35 +50,41 @@ def run_reinforcement_tuner(org_id: str):
     # If observed is much lower than predicted, maybe LLM is overconfident or rules are weak.
     # Discrepancy threshold
     THRESHOLD = 0.05 
-    delta = r_obs - r_pred
+    error = r_obs - r_pred
     
     weight_update = {}
     
-    # We maintain these in a 'config' or 'org_settings' collection?
-    # For now, let's assume they live in an 'engine_config' per org.
-    config_col = db["engine_config"]
-    config = config_col.find_one({"org_id": org_id}) or {
-        "org_id": org_id,
-        "W_LLM": 0.5,
-        "W_RULE": 0.3,
-        "W_ENGAGEMENT": 0.2
-    }
+    registry = ModelRegistry(db)
+    weights = registry.get_weights(org_id)
     
-    old_w_llm = config.get("W_LLM", 0.5)
-    old_w_rule = config.get("W_RULE", 0.3)
+    old_w_llm = weights.get("W_LLM", 0.5)
+    old_w_rule = weights.get("W_RULE", 0.3)
+    w_engagement = weights.get("W_ENGAGEMENT", 0.2)
     
     new_w_llm = old_w_llm
     new_w_rule = old_w_rule
 
-    if abs(delta) > THRESHOLD:
-        if delta < 0:
-            # Over-predicted: LLM might be too lenient. Reduce LLM weight slightly?
-            new_w_llm = max(0.1, old_w_llm - 0.01)
-            new_w_rule = min(0.8, old_w_rule + 0.01)
-        else:
-            # Under-predicted: Rule based might be too conservative. Boost LLM.
-            new_w_llm = min(0.8, old_w_llm + 0.01)
-            new_w_rule = max(0.1, old_w_rule - 0.01)
+    if abs(error) > THRESHOLD:
+        def clamp(val, min_val, max_val):
+            return max(min_val, min(max_val, val))
+            
+        def sign(x):
+            return 1 if x > 0 else -1 if x < 0 else 0
+            
+        learning_rate = LearningConfig.LEARNING_RATE
+        delta = learning_rate * abs(error) * sign(error)
+
+        new_w_llm = clamp(
+            old_w_llm + delta,
+            LearningConfig.MIN_WEIGHT,
+            LearningConfig.MAX_WEIGHT
+        )
+
+        new_w_rule = clamp(
+            old_w_rule - delta,
+            LearningConfig.MIN_WEIGHT,
+            LearningConfig.MAX_WEIGHT
+        )
             
     # 3. Signal-Specific Tuning
     # For signals strongly correlated with positive replies
@@ -96,11 +105,11 @@ def run_reinforcement_tuner(org_id: str):
     }
     
     if LEARNING_MODE:
-        config_col.update_one(
-            {"org_id": org_id},
-            {"$set": {"W_LLM": new_w_llm, "W_RULE": new_w_rule, "last_tuned": datetime.utcnow()}},
-            upsert=True
-        )
+        registry.update_weights(org_id, {
+            "W_LLM": round(new_w_llm, 4),
+            "W_RULE": round(new_w_rule, 4),
+            "W_ENGAGEMENT": w_engagement
+        })
         db["learning_updates"].insert_one(update_doc)
         
         # Log to Audit

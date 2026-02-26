@@ -34,9 +34,9 @@ def classify_intent(text: str, campaign_context: dict) -> dict:
 Task: Analyze the INPUT text to determine if it shows intent that aligns with the target campaign.
 
 CAMPAIGN CONTEXT:
-- ICP: {campaign_context.get('icp_definition', 'N/A')}
-- Problem: {campaign_context.get('problem_statement', 'N/A')}
-- Value Prop: {campaign_context.get('value_prop_summary', 'N/A')}
+- ICP: {campaign_context.get('icp_summary', 'N/A')}
+- Problem/Angles: {campaign_context.get('outreach_angles', 'N/A')}
+- Value Prop/Services: {campaign_context.get('services', 'N/A')}
 
 INPUT:
 {normalized}

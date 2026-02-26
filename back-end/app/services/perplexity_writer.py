@@ -67,8 +67,8 @@ Task: Generate 3 cold email options.
 Tone: {tone_style}
 
 CONTEXT:
-- ICP: {campaign_context.get('icp_definition', 'N/A')}
-- Value Prop: {campaign_context.get('value_prop_summary', 'N/A')}
+- ICP: {campaign_context.get('icp_summary', 'N/A')}
+- Value Prop/Services: {campaign_context.get('services', 'N/A')}
 
 LEAD:
 - Role: {role}

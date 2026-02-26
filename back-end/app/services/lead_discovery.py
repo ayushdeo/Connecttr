@@ -143,12 +143,21 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
                 continue  # keep social only
             sc = _score(hit, geos)
 
+            t_lower = hit["title"].lower()
+            role = ""
+            if "founder" in t_lower or "co-founder" in t_lower: role = "Founder"
+            elif "ceo" in t_lower: role = "CEO"
+            elif "vp" in t_lower or "vice president" in t_lower: role = "VP"
+            elif "director" in t_lower: role = "Director"
+            elif "manager" in t_lower: role = "Manager"
+            elif "coordinator" in t_lower: role = "Coordinator"
+
             leads.append({
                 "id": uuid.uuid4().hex,
                 "campaign_id": campaign_id,
                 "name": hit["title"][:120] or "Unknown",
                 "company": d.replace("www.",""),
-                "role": "",
+                "role": role,
                 "email": None,
                 "score": int(round(sc * 100)),  # 0..100 for UI
                 "status": "New",
