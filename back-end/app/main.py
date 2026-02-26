@@ -90,6 +90,9 @@ app.include_router(orgs_router)
 from app.api.pipeline import router as pipeline_router
 app.include_router(pipeline_router)
 
+from app.api.intent_analytics import router as intent_analytics_router
+app.include_router(intent_analytics_router)
+
 # --- Health (handy for quick tests from the browser console) ---
 @app.get("/")
 def root():
