@@ -90,7 +90,13 @@ def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_curre
     lead_out = dict(lead)
     if "_id" in lead_out: lead_out["id"] = str(lead_out["_id"]); del lead_out["_id"]
 
-    tpl = generate_email_templates(body.company_brief, lead_out, body.signal)
+    # Fetch actual campaign context
+    campaigns = get_database()["campaigns"]
+    camp = campaigns.find_one({"id": body.campaign_id})
+    real_brief = camp.get("brief", {}) if camp else {}
+    real_brief["id"] = body.campaign_id
+
+    tpl = generate_email_templates(real_brief, lead_out, body.signal)
     return {"lead": lead_out, "templates": tpl}
 
 # ---- send via Postmark
@@ -100,23 +106,28 @@ import random
 from datetime import datetime
 
 from app.services.campaign_health import check_campaign_health
+from app.services.experiments import thompson_select
 
 def select_template_variant(org_id: str, campaign_id: str) -> str:
     """
-    Beta distribution promotion (Phase 3).
-    95% exploit promoted variant, else explore.
+    Phase 3: Experimentation Mode Toggle
     """
     db = get_database()
     col = db["template_performance"]
+    mode = os.getenv("EXPERIMENT_MODE", "production")
     
-    # 1. Check for Promoted Variant
+    if mode == "research":
+        variants = list(col.find({"org_id": org_id, "campaign_id": campaign_id}))
+        if not variants:
+            return random.choice(["A", "B", "C"])
+        return thompson_select(variants)
+        
+    # Standard Production Logic: Batch Bayesian (95/5 Biased Exploitation)
     promoted = col.find_one({"org_id": org_id, "campaign_id": campaign_id, "is_promoted": True})
     if promoted:
-        # 95% Exploit promoted, 5% explore
         if random.random() < 0.95:
             return promoted["template_variant"]
             
-    # Fallback to Epsilon-Greedy (80/20) from Phase 2
     best = col.find_one({"org_id": org_id, "campaign_id": campaign_id}, sort=[("conversion_rate", -1)])
     if not best or random.random() < 0.20:
         return random.choice(["A", "B", "C"])

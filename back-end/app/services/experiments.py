@@ -1,4 +1,5 @@
 import random
+import numpy as np
 from typing import Dict, List, Any
 from app.db import get_database
 
@@ -7,6 +8,17 @@ def compute_beta_sample(alpha: float, beta: float) -> float:
     Simple Beta distribution sampler using random.betavariate.
     """
     return random.betavariate(alpha, beta)
+
+def thompson_select(variants: List[Dict]) -> str:
+    """
+    Pure Online Thompson Sampling for runtime selection (Research Mode).
+    """
+    samples = {}
+    for v in variants:
+        alpha = v.get("positive_replies", 0) + 1
+        beta = v.get("sent", 0) - v.get("positive_replies", 0) + 1
+        samples[v.get("template_variant", "A")] = np.random.beta(alpha, beta)
+    return max(samples, key=samples.get)
 
 def run_promotion_check(org_id: str, campaign_id: str):
     """

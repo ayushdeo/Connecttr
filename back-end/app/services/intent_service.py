@@ -21,17 +21,20 @@ def calculate_composite_score(
     rule_score: float,
     llm_score: float,
     engagement_data: dict,
-    org_id: str = "default"
+    org_id: str = "default",
+    weights: dict = None
 ) -> float:
     """
     Phase 3: Uses dynamic weights if available.
     """
-    db = get_database()
-    config = db["engine_config"].find_one({"org_id": org_id}) or {}
-    
-    W_RULE = config.get("W_RULE", 0.3)
-    W_LLM = config.get("W_LLM", 0.5)
-    W_ENGAGEMENT = config.get("W_ENGAGEMENT", 0.2)
+    if not weights:
+        from app.services.model_registry import ModelRegistry
+        registry = ModelRegistry(get_database())
+        weights = registry.get_weights(org_id)
+        
+    W_RULE = weights.get("W_RULE", 0.3)
+    W_LLM = weights.get("W_LLM", 0.5)
+    W_ENGAGEMENT = weights.get("W_ENGAGEMENT", 0.2)
     
     e_score = min(100.0, (engagement_data.get("clicks", 0) * 40) + (engagement_data.get("opens", 0) * 10))
     
@@ -98,12 +101,21 @@ def run_intent_pipeline(campaign_id: str = "default"):
     
     bulk_ops = []
     processed_count = 0
+    
+    from app.services.model_registry import ModelRegistry
+    registry = ModelRegistry(db)
+    org_weights_cache = {}
 
     for lead in raw_leads:
         if lead.get("campaign_id") != campaign_id and campaign_id != "default":
             continue
 
         org_id = lead.get("org_id", "default")
+        
+        if org_id not in org_weights_cache:
+            org_weights_cache[org_id] = registry.get_weights(org_id)
+        current_weights = org_weights_cache[org_id]
+        
         combined = f"{lead.get('title','')} {lead.get('snippet','')}"
         c_text = clean_text(combined)
         
@@ -153,7 +165,7 @@ def run_intent_pipeline(campaign_id: str = "default"):
                 reasoning = "Low rule score skip."
 
         # 5. Composite Score (Dynamic Weights)
-        final_score = calculate_composite_score(r_score, llm_score, eng_data, org_id)
+        final_score = calculate_composite_score(r_score, llm_score, eng_data, org_id, weights=current_weights)
         
         # 5A. Phase 3: Conversion Probability
         hour_now = datetime.utcnow().hour
