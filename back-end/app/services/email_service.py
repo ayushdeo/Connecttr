@@ -80,3 +80,65 @@ def upsert_leads_to_hub(leads_data: list[dict], org_id: str = None) -> int:
             count += 1
             
     return count
+
+def process_bounce(campaign_id: str, email: str, org_id: str):
+    """
+    Step 5: Bounce Feedback Loop.
+    Track bounces per domain and campaign.
+    """
+    db = get_database()
+    domain = email.split("@")[-1].lower() if "@" in email else "unknown"
+    
+    # 1. Track Domain Bounces (per org)
+    domain_key = f"bounce_domain:{org_id}:{domain}"
+    res_domain = db["bounce_stats"].find_one_and_update(
+        {"_id": domain_key},
+        {"$inc": {"count": 1}, "$set": {"domain": domain, "org_id": org_id, "last_bounce": datetime.utcnow()}},
+        upsert=True,
+        return_document=True
+    )
+    
+    # 2. Track Campaign Bounces
+    camp_key = f"bounce_campaign:{campaign_id}"
+    res_camp = db["bounce_stats"].find_one_and_update(
+        {"_id": camp_key},
+        {"$inc": {"count": 1}, "$set": {"campaign_id": campaign_id, "last_bounce": datetime.utcnow()}},
+        upsert=True,
+        return_document=True
+    )
+    
+    # 3. Handle Domain Blacklisting
+    if res_domain["count"] >= 2:
+        # Save to a dedicated blacklist or just check this count during send
+        # We'll use a blacklist collection for faster lookups
+        db["blacklisted_domains"].update_one(
+            {"domain": domain, "org_id": org_id},
+            {"$set": {"reason": "high_bounce_rate", "at": datetime.utcnow()}},
+            upsert=True
+        )
+
+    # 4. Campaign Analytics / Alert
+    # We need total sends to compute rate. 
+    # Let's assume we track total sends in usage_stats or a similar place.
+    # For now, we'll fetch send count from leads collection where status is 'Sent' or 'Responded' etc.
+    leads_col = get_leads_collection()
+    total_sent = leads_col.count_documents({"campaign_id": campaign_id, "status": {"$in": ["Sent", "Opened", "Responded", "Bounced", "SpamComplaint"]}})
+    
+    if total_sent > 10: # Minimum sample size
+        bounce_rate = (res_camp["count"] / total_sent) * 100
+        if bounce_rate > 8:
+            get_audit_collection().insert_one({
+                "org_id": org_id,
+                "action": "high_bounce_alert",
+                "resource": f"campaign/{campaign_id}",
+                "metadata": {"bounce_rate": round(bounce_rate, 2), "bounces": res_camp["count"], "total": total_sent},
+                "timestamp": datetime.utcnow()
+            })
+
+def is_domain_blacklisted(email: str, org_id: str) -> bool:
+    db = get_database()
+    domain = email.split("@")[-1].lower() if "@" in email else None
+    if not domain: return False
+    
+    found = db["blacklisted_domains"].find_one({"domain": domain, "org_id": org_id})
+    return found is not None

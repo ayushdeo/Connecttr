@@ -2,14 +2,45 @@ import os
 import re
 import uuid
 import requests
-from typing import List, Dict
+import math
+import time
+from typing import List, Dict, Any
+from datetime import datetime, timedelta
+from pymongo import UpdateOne
 
-from app.db import get_leads_collection
+from app.db import get_leads_collection, get_campaigns_collection, get_database
 from app.services.email_service import upsert_leads_to_hub
-from app.services.perplexity_client import score_intent_freeform
+from app.services.perplexity_client import classify_intent
 
 # Conf
 EMAILHUB_URL = os.getenv("EMAILHUB_URL", "http://localhost:8000")
+
+from app.ml.predict import predict_conversion_probability
+
+def calculate_composite_score(
+    rule_score: float,
+    llm_score: float,
+    engagement_data: dict,
+    org_id: str = "default"
+) -> float:
+    """
+    Phase 3: Uses dynamic weights if available.
+    """
+    db = get_database()
+    config = db["engine_config"].find_one({"org_id": org_id}) or {}
+    
+    W_RULE = config.get("W_RULE", 0.3)
+    W_LLM = config.get("W_LLM", 0.5)
+    W_ENGAGEMENT = config.get("W_ENGAGEMENT", 0.2)
+    
+    e_score = min(100.0, (engagement_data.get("clicks", 0) * 40) + (engagement_data.get("opens", 0) * 10))
+    
+    composite = (rule_score * W_RULE) + (llm_score * W_LLM) + (e_score * W_ENGAGEMENT)
+    
+    if engagement_data.get("replies", 0) > 0:
+        composite *= 1.5
+        
+    return float(max(0.0, min(100.0, round(composite, 2))))
 
 def clean_text(text: str) -> str:
     if not text: return ""
@@ -21,7 +52,10 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 def classify_kind(lead: Dict) -> str:
-    # ... logic from Intent.py ...
+    """
+    Generalized kind classification. 
+    Focuses on excluding staffing/job posts.
+    """
     t = f"{lead.get('title','')} {lead.get('snippet','')} {lead.get('clean_text','')}".lower()
     url = (lead.get("url") or "").lower()
     
@@ -29,133 +63,135 @@ def classify_kind(lead: Dict) -> str:
     JOB_TOKENS = (
         r"\b(full[- ]?time|part[- ]?time|contract|contractor|freelance role|shift|benefits|apply now|join our team)\b",
         r"\b(hiring|we are hiring|job opening|position|role|recruit(?:ing|er)?)\b",
-        r"\bphotographer\b.*\b(hiring|position|role|apply)\b",
-    )
-    SUPPLIER_TOKENS = (
-        r"\b(my portfolio|portfolio link|book me|now booking|my rates|rate card|shoots available|taking bookings)\b",
-        r"\bI (shot|photographed|covered) (?:yesterday|last week|last night|today)\b",
     )
     
     if any(d in url for d in JOB_DOMAINS): return "staffing_job"
     if any(re.search(rx, t) for rx in JOB_TOKENS): return "staffing_job"
-    if any(re.search(rx, t) for rx in SUPPLIER_TOKENS): return "supplier_promo"
-    return "event_buyer_candidate" if len(lead.get("clean_text", "")) >= 8 else "other"
+    return "buyer_candidate" if len(lead.get("clean_text", "")) >= 8 else "other"
+
+def get_domain_engagement(email: str, org_id: str) -> dict:
+    if not email or "@" not in email:
+        return {}
+    domain = email.split("@")[-1].lower()
+    db = get_database()
+    emails_col = db["emails"]
+    
+    # Count opens/clicks for this domain in this org
+    pipeline = [
+        {"$match": {"lead_id": {"$exists": True}, "direction": "outbound"}}, # This is simplified
+    ]
+    # For now, let's keep it simple: return 0s unless we have a domain-engagement collection
+    return {"opens": 0, "clicks": 0, "replies": 0}
 
 def run_intent_pipeline(campaign_id: str = "default"):
-    """
-    Refactored Intent.py logic.
-    1. Fetch unprocessed leads.
-    2. Normalize/Clean.
-    3. Feature Extract/Score.
-    4. Save updates.
-    5. Push qualified to EmailHub (via API call, or internal logic).
-    """
     collection = get_leads_collection()
+    db = get_database()
     
-    # Optional: fetch only leads that need processing? 
-    # For now, replicate existing behavior: fetch all, process all. 
-    # Efficiency Note: Should ideally filter `{"final_score": {"$exists": False}}`
     raw_leads = list(collection.find({}))
     if not raw_leads:
         return {"processed": 0, "message": "No leads found"}
 
+    campaigns_coll = get_campaigns_collection()
+    campaign = campaigns_coll.find_one({"id": campaign_id})
+    brief = campaign.get("brief", {}) if campaign else {}
+    lead_signals = brief.get("lead_signals", [])
+    
+    bulk_ops = []
     processed_count = 0
-    updated_count = 0
-    
-    # Features Config
-    keyword_map = {
-        "mentions_hiring": ["hiring photographer", "photographer needed", "looking for photographer", "need a photographer"],
-        "mentions_event": ["wedding", "shoot", "event", "pre wedding", "party", "function", "ceremony", "studio"],
-        "mentions_urgency": ["urgent", "asap", "immediate", "this week", "today", "tomorrow"],
-        "mentions_commercial": ["brand", "product", "campaign", "ecommerce", "content team", "promo", "volume"],
-    }
-    
+
     for lead in raw_leads:
-        # 1. Preprocess
+        if lead.get("campaign_id") != campaign_id and campaign_id != "default":
+            continue
+
+        org_id = lead.get("org_id", "default")
         combined = f"{lead.get('title','')} {lead.get('snippet','')}"
         c_text = clean_text(combined)
         
-        # 2. Features
-        stats = {k: any(kw in c_text for kw in kws) for k, kws in keyword_map.items()}
-        
-        # 3. Rule Score
+        # 2. Rule Score with Signal Reinforcement
         r_score = 0.0
-        r_score += 0.4 if stats["mentions_hiring"] else 0.0
-        r_score += 0.3 if stats["mentions_event"] else 0.0
-        r_score += 0.2 if stats["mentions_commercial"] else 0.0
-        r_score += 0.1 if stats["mentions_urgency"] else 0.0
-        r_score = round(max(0.0, min(1.0, r_score)), 2)
+        matched_sigs = []
+        if lead_signals:
+            for sig in lead_signals:
+                if sig.lower() in c_text:
+                    matched_sigs.append(sig)
+                    sw = db["signal_weights"].find_one({"org_id": org_id, "signal_type": sig})
+                    boost = sw.get("weight_boost", 0.0) if sw else 0.0
+                    r_score += (25.0 + (boost * 100))
+            r_score = min(100.0, r_score)
 
-        # 4. Kind
-        # Create temp dict for classification
-        tmp_lead = {**lead, "clean_text": c_text, **stats}
-        kind = classify_kind(tmp_lead)
+        # 3. Signals & Kind
+        signal_time = lead.get("created_at") or time.time()
+        recency_factor = math.exp(-((time.time() - signal_time) / 86400) / 30)
+        r_score *= recency_factor
+
+        eng_data = get_domain_engagement(lead.get("email", ""), org_id)
         
-        # 5. LLM Score (only if event buyer)
-        p_score = lead.get("perplexity_score", 0.0)
-        final_score = 0.0
+        # Adaptive Persona
+        role = lead.get("role", "")
+        persona_mult = {
+            "Founder": 1.2, "CEO": 1.15, "VP": 1.1, "CMO": 1.1, "Head": 1.05
+        }.get(role, 1.0)
+        r_score = min(100.0, r_score * persona_mult)
+        
+        kind = classify_kind({**lead, "clean_text": c_text})
+        
+        # 4. LLM Tiering
+        llm_score = lead.get("llm_score") or (lead.get("perplexity_score", 0.0) * 100)
+        reasoning = "N/A"
+        
+        if kind == "buyer_candidate":
+            if r_score > 85.0:
+                if not llm_score: llm_score = 90.0
+                reasoning = "Auto-approved."
+            elif 40.0 <= r_score <= 85.0:
+                if not llm_score and len(c_text) > 5:
+                    intent_res = classify_intent(c_text, brief)
+                    llm_score = float(intent_res.get("intent_score", 0))
+                    reasoning = intent_res.get("reasoning", "")
+            else:
+                llm_score = llm_score or 10.0
+                reasoning = "Low rule score skip."
+
+        # 5. Composite Score (Dynamic Weights)
+        final_score = calculate_composite_score(r_score, llm_score, eng_data, org_id)
+        
+        # 5A. Phase 3: Conversion Probability
+        hour_now = datetime.utcnow().hour
+        p_conv = predict_conversion_probability(lead, {
+            "rule_score": r_score, "llm_score": llm_score, "hour_of_send": hour_now
+        })
+
         intent_label = "Low"
+        if final_score >= 70: intent_label = "High"
+        elif final_score >= 50: intent_label = "Medium"
 
-        # Weights
-        W_RULE, W_LLM = 0.4, 0.6
-        
-        if kind == "event_buyer_candidate":
-            # If not already scored or forcing re-score...
-            if not p_score and len(c_text) > 5:
-                # Call Perplexity
-                p_score_val = score_intent_freeform(c_text)
-                p_score = p_score_val if p_score_val is not None else 0.05
-            
-            final_score = round((W_RULE * r_score) + (W_LLM * p_score), 2)
-            
-            if final_score >= 0.70: intent_label = "High"
-            elif final_score >= 0.50: intent_label = "Medium"
-            
-        elif kind == "staffing_job":
-            r_score, p_score, final_score = 0.10, 0.05, 0.25
-            intent_label = "Medium (Staffing/Job)"
-        elif kind == "supplier_promo":
-            r_score, p_score, final_score = 0.05, 0.05, 0.10
-            intent_label = "Low (Supplier/Promo)"
-        else:
-            final_score = 0.05
-
-        # 6. Update MongoDB
         update_fields = {
-            "clean_text": c_text,
-            "kind": kind,
-            "rule_score": r_score,
-            "perplexity_score": p_score,
-            "final_score": final_score,
-            "intent_label": intent_label,
-            **stats 
+            "clean_text": c_text, "kind": kind,
+            "rule_score": float(r_score), "llm_score": float(llm_score),
+            "final_score": float(final_score), "intent_label": intent_label,
+            "ai_reasoning": reasoning,
+            "predicted_conversion_probability": p_conv,
+            "last_processed_at": datetime.utcnow()
         }
         
-        collection.update_one({"_id": lead["_id"]}, {"$set": update_fields})
-        updated_count += 1
+        bulk_ops.append(UpdateOne({"_id": lead["_id"]}, {"$set": update_fields}))
         processed_count += 1
-        
-# import moved to top
 
-        # 7. Auto-Push to EmailHub logic
+        # Push to Hub if qualified
         email = lead.get("email")
-        if kind == "event_buyer_candidate" and email:
+        if kind == "buyer_candidate" and email and final_score >= 50:
             if lead.get("status") == "New" or not lead.get("status"):
-               try:
-                    score_pct = int(final_score * 100)
-                    payload = [{
-                        "id": str(lead.get("id") or lead.get("_id") or uuid.uuid4().hex),
-                        "campaign_id": campaign_id,
-                        "name": lead.get("contact_name") or lead.get("title") or "Unknown",
-                        "company": "",
-                        "role": "",
-                        "email": email,
-                        "score": score_pct,
-                        "status": "New"
-                    }]
-                    # Direct service call - no HTTP
-                    upsert_leads_to_hub(payload)
-               except Exception as e:
-                   print(f"Failed to push to emailhub: {e}")
+                payload = [{
+                    "id": str(lead.get("id") or lead.get("_id") or uuid.uuid4().hex),
+                    "campaign_id": campaign_id,
+                    "name": lead.get("contact_name") or lead.get("title") or "Unknown",
+                    "email": email,
+                    "score": int(final_score),
+                    "status": "New"
+                }]
+                upsert_leads_to_hub(payload)
 
-    return {"processed": processed_count, "recategorized": updated_count}
+    if bulk_ops:
+        collection.bulk_write(bulk_ops)
+
+    return {"processed": processed_count, "message": "Pipeline completed via batch update"}

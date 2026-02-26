@@ -1,0 +1,58 @@
+{
+    "readiness_check": {
+        "status": "FAIL",
+        "timestamp": "2026-02-25T15:35:00Z",
+        "summary": "System logic is verified via dry-run, but environment configuration and database indexing are NOT production-ready."
+    },
+    "env_verification": {
+        "found": [
+            "BACKEND_PUBLIC_URL",
+            "FRONTEND_ORIGIN",
+            "MONGO_URI",
+            "PERPLEXITY_API_KEY"
+        ],
+        "missing": [
+            "PROMOTION_MIN_SAMPLES",
+            "BOUNCE_PAUSE_THRESHOLD",
+            "LEARNING_MODE"
+        ],
+        "risks": "Render production URL is currently defaulting to localhost in .env"
+    },
+    "localhost_fallbacks": [
+        {
+            "file": "app/api/campaigns.py",
+            "line": 26,
+            "content": "EMAILHUB_URL = f\"http://127.0.0.1:{_PORT}\""
+        },
+        {
+            "file": "app/api/campaigns.py",
+            "line": 28,
+            "content": "EMAILHUB_URL = \"http://127.0.0.1:8000\""
+        },
+        {
+            "file": "app/services/intent_service.py",
+            "line": 16,
+            "content": "EMAILHUB_URL = os.getenv(\"EMAILHUB_URL\", \"http://localhost:8000\")"
+        }
+    ],
+    "mongo_index_audit": {
+        "missing": [
+            "leads({org_id: 1, campaign_id: 1, status: 1})",
+            "template_performance({org_id: 1, campaign_id: 1})",
+            "usage_stats ({org_id: 1, date: 1}) - Collection Missing"
+        ]
+    },
+    "unit_tests": {
+        "status": "FAILURE",
+        "error": "pytest not installed in environment"
+    },
+    "dry_runs": {
+        "migration": "migrate_report.json (0 users pending)",
+        "simulation": "dry_run_summary.csv (50 leads, avg intent 75.5, variant B promoted)"
+    },
+    "next_steps": [
+        "Execute fixes with --apply flag",
+        "Configure missing ENV on Render",
+        "Install pytest for CI/CD"
+    ]
+}

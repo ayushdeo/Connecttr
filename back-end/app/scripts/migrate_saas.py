@@ -1,12 +1,11 @@
-import os, sys
+import os, sys, json, argparse
 from pymongo import MongoClient
 from datetime import datetime
 
-# Adjust path to find app module if needed
+# Adjust path to find app module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-# Move up 3 levels: app/scripts/migrate.py -> app/scripts -> app -> back-end
 env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')
 load_dotenv(env_path)
 
@@ -25,20 +24,35 @@ campaigns_coll = db["campaigns"]
 leads_coll = db["leads"]
 audit_coll = db["audit_logs"]
 
-def migrate():
-    print("Starting SaaS Migration...")
+def migrate(dry_run=False):
+    print(f"Starting SaaS Migration{' (DRY RUN)' if dry_run else ''}...")
     
     users = list(users_coll.find({"org_id": {"$exists": False}}))
     print(f"Found {len(users)} users needing migration.")
+    
+    report = {
+        "users_migrated": 0,
+        "orgs_created": 0,
+        "orphans_claimed": 0,
+        "hypothetical_mappings": []
+    }
     
     for user in users:
         user_id = str(user["_id"])
         name = user.get("name", "User")
         email = user.get("email", "unknown")
         
-        print(f"Migrating user: {email} ({user_id})")
-        
-        # 1. Create Org
+        if dry_run:
+            report["hypothetical_mappings"].append({
+                "user_id": user_id,
+                "user_email": email,
+                "org_name": f"{name}'s Organization"
+            })
+            report["users_migrated"] += 1
+            report["orgs_created"] += 1
+            continue
+
+        # Real Migration Logic
         org_data = {
             "name": f"{name}'s Organization",
             "owner_id": user_id,
@@ -48,63 +62,38 @@ def migrate():
         res_org = orgs_coll.insert_one(org_data)
         org_id = str(res_org.inserted_id)
         
-        # 2. Update User
-        users_coll.update_one(
-            {"_id": user["_id"]},
-            {"$set": {"org_id": org_id, "role": "owner"}}
-        )
+        users_coll.update_one({"_id": user["_id"]}, {"$set": {"org_id": org_id, "role": "owner"}})
         
-        # 3. Create Audit Log
         audit_coll.insert_one({
             "org_id": org_id,
             "user_id": user_id,
             "action": "migration_create_org",
-            "resource": "system",
             "timestamp": datetime.utcnow()
         })
-        
-        # 4. Claim Orphaned Data?
-        # Assuming existing data belongs to this user if there's only one user or we just assign it to them.
-        # But wait, without owner_id on campaigns previously, how do we know who owns what?
-        # If the system was single tenant effectively (or shared), we might have a problem.
-        # IF there is no owner_id on campaigns, we might just assign them to the first migrated user?
-        # OR we leave them orphaned until claimed?
-        # Strategy: Logic provided in prompt: "Attach orphaned campaigns/leads to that org if applicable"
-        
-        # Let's verify if campaigns have owner_id or user_id?
-        # Previous models didn't strictly show it. 
-        # If they don't have it, we might be in trouble for multi-tenant migration of old data.
-        # Strategy: If effectively single user, assign all to this user.
-        # If multiple users, we might need manual intervention orheuristic (e.g. check logs?).
-        # Implementation: Assign all campaigns without org_id to this user's org.
-        
-        # Danger: If multiple users exist, they will ALL fight for the same campaigns?
-        # SAFE APPROACH: only assign if total users == 1, or just log a warning.
-        # Let's perform a "Claim All Orphans" for the FIRST migrated user, treating them as Admin.
-        
-    # Orphans cleanup (Assign to first found admin/owner if necessary, or just leave them)
-    # Updating campaigns with missing org_id
+        report["users_migrated"] += 1
+        report["orgs_created"] += 1
+
+    # Orphans
     orphaned_campaigns = campaigns_coll.count_documents({"org_id": {"$exists": False}})
     if orphaned_campaigns > 0:
-        print(f"Found {orphaned_campaigns} orphaned campaigns.")
-        # Find an owner to assign to? 
-        owner = users_coll.find_one({"role": "owner"})
-        if owner and owner.get("org_id"):
-            print(f"Assigning orphans to {owner['email']}'s Org ({owner['org_id']})")
-            campaigns_coll.update_many(
-                {"org_id": {"$exists": False}}, 
-                {"$set": {"org_id": owner["org_id"], "owner_id": str(owner["_id"])}}
-            )
-            
-            # Also leads
-            leads_coll.update_many(
-                {"org_id": {"$exists": False}},
-                {"$set": {"org_id": owner["org_id"]}}
-            )
+        if dry_run:
+            report["orphans_claimed"] = orphaned_campaigns
         else:
-            print("No owner found to assign orphans to.")
+            owner = users_coll.find_one({"role": "owner"})
+            if owner and owner.get("org_id"):
+                campaigns_coll.update_many({"org_id": {"$exists": False}}, {"$set": {"org_id": owner["org_id"], "owner_id": str(owner["_id"])}})
+                leads_coll.update_many({"org_id": {"$exists": False}}, {"$set": {"org_id": owner["org_id"]}})
+                report["orphans_claimed"] = orphaned_campaigns
 
-    print("Migration Complete.")
+    if dry_run:
+        with open("migrate_report.json", "w") as f:
+            json.dump(report, f, indent=2)
+        print("Dry run report saved to migrate_report.json")
+
+    print("Migration Process Finished.")
 
 if __name__ == "__main__":
-    migrate()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    migrate(dry_run=args.dry_run)

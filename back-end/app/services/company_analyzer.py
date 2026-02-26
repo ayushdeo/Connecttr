@@ -4,8 +4,8 @@ from typing import Optional, Dict, Any
 from tenacity import retry, stop_after_attempt, wait_exponential
 from dotenv import load_dotenv, find_dotenv
 
-# Load env from apiKey.env (works no matter your CWD)
-load_dotenv(find_dotenv(filename="apiKey.env", usecwd=True))
+# Load env from .env
+load_dotenv()
 
 class AnalyzerHTTPError(RuntimeError): ...
 class AnalyzerConfigError(RuntimeError): ...

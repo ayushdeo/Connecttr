@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Optional
 from datetime import datetime, timedelta
 import secrets, os
+from bson import ObjectId
 
 from app.db import (
     get_users_collection, get_orgs_collection, get_invites_collection, 
@@ -43,12 +44,6 @@ def update_member_role(
         raise HTTPException(400, "Cannot change your own role")
     
     users_coll = get_users_collection()
-    member = users_coll.find_one({"_id": user_id, "org_id": current_user.org_id}) # ObjectId handling?
-    # User IDs in this system are Strings or ObjectIds?
-    # In auth.py we store inserted_id which is ObjectId, but cast to str for some uses.
-    # The DB stores ObjectId. find_one requires ObjectId usually.
-    # Let's handle ObjectId safely.
-    from bson import ObjectId
     try:
         oid = ObjectId(user_id)
     except:
@@ -58,6 +53,29 @@ def update_member_role(
     if not member:
         raise HTTPException(404, "Member not found")
         
+    # Handle ownership transfer
+    if role == "owner":
+        orgs_coll = get_orgs_collection()
+        # Update organization owner
+        orgs_coll.update_one(
+            {"_id": ObjectId(current_user.org_id)}, 
+            {"$set": {"owner_id": user_id}}
+        )
+        # Demote current owner to admin
+        users_coll.update_one(
+            {"_id": ObjectId(current_user.id)}, 
+            {"$set": {"role": "admin"}}
+        )
+        # Audit Log for transfer
+        get_audit_collection().insert_one({
+            "org_id": current_user.org_id,
+            "user_id": current_user.id,
+            "action": "ownership_transferred",
+            "resource": "org",
+            "metadata": {"new_owner_id": user_id},
+            "timestamp": datetime.utcnow()
+        })
+
     users_coll.update_one({"_id": oid}, {"$set": {"role": role}})
     return {"ok": True}
 
@@ -70,7 +88,6 @@ def remove_member(
     if user_id == current_user.id:
         raise HTTPException(400, "Cannot remove yourself")
         
-    from bson import ObjectId
     try:
         oid = ObjectId(user_id)
     except:

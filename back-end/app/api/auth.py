@@ -94,16 +94,35 @@ async def auth_callback_google(request: Request):
     
     if existing_user:
         user_id = str(existing_user["_id"])
-        # Check if user has org_id (legacy fix)
-        if "org_id" not in existing_user or not existing_user["org_id"]:
-             # Lazy migration for legacy user during login
+        update_data = {
+            "name": name, 
+            "picture": picture, 
+            "last_login": datetime.utcnow()
+        }
+        
+        # 1. Bootstrap/Update org_id and role
+        if not existing_user.get("org_id"):
+             # Create new organization if missing
              new_org = Organization(name=f"{name}'s Org" if name else "My Organization", owner_id=user_id)
              res_org = orgs_coll.insert_one(new_org.dict(exclude={"id"}))
              org_id = str(res_org.inserted_id)
-             users_coll.update_one({"_id": existing_user["_id"]}, {"$set": {"org_id": org_id, "role": "owner"}})
-        
-        # Update profile info
-        users_coll.update_one({"email": email}, {"$set": {"name": name, "picture": picture, "last_login": datetime.utcnow()}})
+             update_data["org_id"] = org_id
+             update_data["role"] = "owner"
+             user_org_id = org_id
+        else:
+            user_org_id = existing_user["org_id"]
+            # 2. Migration safety: If role is missing, set to "owner" if they match org.owner_id
+            if not existing_user.get("role"):
+                from bson import ObjectId
+                org = orgs_coll.find_one({"_id": ObjectId(user_org_id)})
+                if org and org.get("owner_id") == user_id:
+                    update_data["role"] = "owner"
+                else:
+                    update_data["role"] = "member"
+
+        # Update User Record
+        users_coll.update_one({"_id": existing_user["_id"]}, {"$set": update_data})
+        user_id = str(existing_user["_id"])
         
     else:
         # INVITE-ONLY LOGIC
