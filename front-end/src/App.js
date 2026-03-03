@@ -16,7 +16,7 @@ export default function App() {
           <Route path="/forbidden" element={<ForbiddenPage />} />
 
           {/* Shell Routes - Map all valid app sections to Shell */}
-          {["/", "/dashboard", "/campaigns", "/email-hub", "/emailhub", "/analytics", "/settings", "/settings/organization", "/demo"].map((path) => (
+          {["/", "/dashboard", "/campaigns", "/email-hub", "/emailhub", "/analytics", "/settings", "/demo"].map((path) => (
             <Route
               key={path}
               path={path}
@@ -27,6 +27,16 @@ export default function App() {
               }
             />
           ))}
+
+          {/* Explicitly Protected Org Settings Route */}
+          <Route
+            path="/settings/organization"
+            element={
+              <ProtectedRoute roles={["owner", "admin"]}>
+                <Shell />
+              </ProtectedRoute>
+            }
+          />
 
           {/* 404 Catch-All */}
           <Route path="*" element={<NotFoundPage />} />

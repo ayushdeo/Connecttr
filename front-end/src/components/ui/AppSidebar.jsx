@@ -6,7 +6,8 @@ import {
     Inbox,
     BarChart2,
     Settings,
-    LogOut
+    LogOut,
+    Users
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
@@ -57,6 +58,23 @@ const AppSidebar = ({ activePage, setActivePage }) => {
                         </button>
                     );
                 })}
+
+                {/* Conditional Admin/Owner Org Item */}
+                {["owner", "admin"].includes(user?.role) && (
+                    <button
+                        onClick={() => setActivePage("settings/organization")}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ease-out font-medium group
+            ${activePage === "settings/organization"
+                                ? "bg-royal-amethyst text-white shadow-lg shadow-royal-amethyst/20 scale-[1.02]"
+                                : "text-soft-violet hover:bg-white/5 hover:text-white"
+                            }`}
+                    >
+                        <div className={`${activePage === "settings/organization" ? "text-white" : "text-soft-violet group-hover:text-white"}`}>
+                            <Users size={20} />
+                        </div>
+                        <span>Organization</span>
+                    </button>
+                )}
             </nav>
 
             {/* User Footer */}
