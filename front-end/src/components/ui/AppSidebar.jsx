@@ -23,6 +23,8 @@ const navItems = [
 const AppSidebar = ({ activePage, setActivePage }) => {
     const { user, logout } = useAuth();
 
+    console.log("[AppSidebar] Render triggered. User state:", user, "Calculated Role:", user?.role);
+
     return (
         <aside className="w-64 flex-shrink-0 flex flex-col z-20 bg-midnight-plum/90 backdrop-blur-md border-r border-white/10 shadow-2xl h-screen sticky top-0 transition-all duration-300">
 
