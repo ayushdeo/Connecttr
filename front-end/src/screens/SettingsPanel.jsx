@@ -12,9 +12,19 @@ import {
     LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function SettingsPanel({ onNavigate }) {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleNavigation = (path) => {
+        if (onNavigate) {
+            onNavigate(path);
+        } else {
+            navigate(`/${path}`);
+        }
+    };
     return (
         <div className="flex flex-col p-8 min-h-screen text-mist font-sans w-full max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -40,7 +50,7 @@ export default function SettingsPanel({ onNavigate }) {
                             icon={<Users size={20} />}
                             label="Organization details"
                             subLabel="Manage members, invites, and roles"
-                            onClick={() => onNavigate && onNavigate('settings/organization')}
+                            onClick={() => handleNavigation('settings/organization')}
                         />
                     )}
 
@@ -48,6 +58,7 @@ export default function SettingsPanel({ onNavigate }) {
                         icon={<LogOut size={20} />}
                         label="Sign Out"
                         subLabel="Log out of your account on this device"
+                        onClick={logout}
                         danger
                     />
                 </SettingsSection>
