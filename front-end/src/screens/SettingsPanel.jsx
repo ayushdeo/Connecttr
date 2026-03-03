@@ -2,6 +2,7 @@
 import React from 'react';
 import {
     User,
+    Users,
     Bell,
     Moon,
     ShieldCheck,
@@ -10,8 +11,10 @@ import {
     ChevronRight,
     LogOut
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ onNavigate }) {
+    const { user } = useAuth();
     return (
         <div className="flex flex-col p-8 min-h-screen text-mist font-sans w-full max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -29,8 +32,18 @@ export default function SettingsPanel() {
                     <SettingsRow
                         icon={<User size={20} />}
                         label="My Profile"
-                        subLabel="Ayush D. • ayushd@connecttr.com"
+                        subLabel={`${user?.name || 'User'} • ${user?.email || ''}`}
                     />
+
+                    {(user?.role === 'owner' || user?.role === 'admin') && (
+                        <SettingsRow
+                            icon={<Users size={20} />}
+                            label="Organization details"
+                            subLabel="Manage members, invites, and roles"
+                            onClick={() => onNavigate && onNavigate('settings/organization')}
+                        />
+                    )}
+
                     <SettingsRow
                         icon={<LogOut size={20} />}
                         label="Sign Out"
@@ -94,8 +107,10 @@ const SettingsSection = ({ title, children }) => (
     </div>
 );
 
-const SettingsRow = ({ icon, label, subLabel, badge, danger }) => (
-    <button className={`w-full flex items-center justify-between p-4 transition-colors border-b border-white/5 last:border-0 hover:bg-lilac-mist/5 group`}>
+const SettingsRow = ({ icon, label, subLabel, badge, danger, onClick }) => (
+    <button
+        onClick={onClick}
+        className={`w-full flex items-center justify-between p-4 transition-colors border-b border-white/5 last:border-0 hover:bg-lilac-mist/5 group`}>
         <div className="flex items-center gap-4">
             <div className={`p-2 rounded-xl transition-colors ${danger
                 ? 'bg-rose-500/10 text-rose-400 group-hover:bg-rose-500/20'
