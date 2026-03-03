@@ -16,7 +16,7 @@ export default function App() {
           <Route path="/forbidden" element={<ForbiddenPage />} />
 
           {/* Shell Routes - Map all valid app sections to Shell */}
-          {["/", "/dashboard", "/campaigns", "/email-hub", "/emailhub", "/analytics", "/settings", "/demo"].map((path) => (
+          {["/", "/dashboard", "/campaigns", "/email-hub", "/emailhub", "/analytics", "/settings", "/settings/organization", "/demo"].map((path) => (
             <Route
               key={path}
               path={path}

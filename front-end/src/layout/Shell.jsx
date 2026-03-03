@@ -4,6 +4,7 @@ import DashboardHome from "../screens/DashboardHome";
 import CampaignManager from "../screens/CampaignManager";
 import AnalyticsDashboard from "../screens/AnalyticsDashboard";
 import SettingsPanel from "../screens/SettingsPanel";
+import OrganizationSettings from "../screens/OrganizationSettings";
 import EmailHub from "../screens/EmailHub";
 import DemoSidebar from "../screens/DemoSidebar";
 import AppSidebar from "../components/ui/AppSidebar";
@@ -40,7 +41,9 @@ const Shell = () => {
       case "analytics":
         return <AnalyticsDashboard />;
       case "settings":
-        return <SettingsPanel />;
+      case "settings/organization":
+        // Let the URL or activePage state handle this. If it's pure state-based sidebar:
+        return activePage === "settings/organization" ? <OrganizationSettings /> : <SettingsPanel onNavigate={setActivePage} />;
       case "demo":
         return <DemoSidebar />;
       default:

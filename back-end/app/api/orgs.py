@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Optional
 from datetime import datetime, timedelta
-import secrets, os
+import secrets, os, time
+import logging
 from bson import ObjectId
+
+logger = logging.getLogger(__name__)
 
 from app.db import (
     get_users_collection, get_orgs_collection, get_invites_collection, 
@@ -11,7 +14,10 @@ from app.db import (
 from app.core.deps import get_current_user_with_org, RoleChecker
 from app.models.user_model import UserInDB
 from app.models.invite_model import OrgInvite
-from app.services.postmark_client import send_postmark_email # Reuse or create specific invite sender
+from app.services.postmark_client import send_postmark_email 
+from app.core.limiter import limiter
+from fastapi import Request
+
 # Note: postmark_client currently targets leads, might need a generic email sender.
 # For now, we'll assume we can use it or extend it.
 
@@ -110,27 +116,25 @@ def remove_member(
 # --- Invites ---
 
 @router.post("/invites")
+@limiter.limit("5/minute")
 def create_invite(
+    request: Request,
     email: str = Body(..., embed=True),
     role: str = Body("member", embed=True),
     current_user: UserInDB = Depends(get_current_user_with_org),
     _ = Depends(RoleChecker(["owner", "admin"]))
 ):
-    # Check existing user?
+    # Check existing user
     users_coll = get_users_collection()
     if users_coll.find_one({"email": email}):
-        # If user exists, we might just add them? Logic says "Invite-only access".
-        # If user exists, they are already on an org (migrated).
-        # Multi-org support? Prompt says "Each user belongs to exactly one org_id".
-        # So if user exists, they cannot be invited unless we support multi-org or they leave old org.
         # For simplicity: Reject existing users.
         raise HTTPException(400, "User already registered. They must leave their current organization first.")
         
     invites_coll = get_invites_collection()
     # Check pending invite
-    existing = invites_coll.find_one({"email": email, "status": "pending"})
+    existing = invites_coll.find_one({"email": email, "org_id": current_user.org_id, "status": "pending"})
     if existing:
-        return {"ok": True, "message": "Invite already pending", "token": existing["token"]} # Provide token for resend?
+        return {"ok": True, "message": "Invite already pending", "token": existing["token"]} 
 
     token = secrets.token_urlsafe(32)
     invite = OrgInvite(
@@ -147,21 +151,26 @@ def create_invite(
     # Send Email
     invite_link = f"{os.getenv('FRONTEND_ORIGIN')}/login?invite={token}"
     
-    try:
-        # Use Postmark client. Using "system" as specific campaign/lead IDs.
-        send_postmark_email(
-            campaign_id="system-invite",
-            lead_id="system",
-            to_email=email,
-            from_email=os.getenv("POSTMARK_FROM_EMAIL", "support@connecttr.com"), # Fallback or env
-            subject="You've been invited to Connecttr",
-            text_body=f"You have been invited to join an organization on Connecttr.\n\nClick here to accept: {invite_link}\n\nThis link expires in 7 days.",
-            html_body=f"<p>You have been invited to join an organization on Connecttr.</p><p><a href='{invite_link}'>Accept Invite</a></p><p>This link expires in 7 days.</p>"
-        )
-    except Exception as e:
-        # Log error but don't fail the request, users can retry or copy token
-        print(f"Failed to send invite email: {e}")
-        # Note: We return token so admin can copy-paste if email fails
+    email_sent = False
+    for attempt in range(3):
+        try:
+            send_postmark_email(
+                campaign_id="system-invite",
+                lead_id="system",
+                to_email=email,
+                from_email=os.getenv("POSTMARK_FROM_EMAIL", "support@connecttr.com"),
+                subject="You've been invited to Connecttr",
+                text_body=f"You have been invited to join an organization on Connecttr.\n\nClick here to accept: {invite_link}\n\nThis link expires in 7 days.",
+                html_body=f"<p>You have been invited to join an organization on Connecttr.</p><p><a href='{invite_link}'>Accept Invite</a></p><p>This link expires in 7 days.</p>"
+            )
+            email_sent = True
+            break
+        except Exception as e:
+            logger.error(f"Invite email failed on attempt {attempt+1}", exc_info=True)
+            time.sleep(2 ** attempt)
+            
+    if not email_sent:
+        logger.error("All email retries failed. Returning token for manual share.", extra={"email": email})
         
     # Audit Log
     get_audit_collection().insert_one({
@@ -172,8 +181,8 @@ def create_invite(
         "metadata": {"email": email, "role": role},
         "timestamp": datetime.utcnow()
     })
-    
-    return {"ok": True, "token": token} # Return token to frontend for copy-paste or debug
+    logger.info("Invite created", extra={"email": email, "role": role, "org_id": current_user.org_id})
+    return {"ok": True, "token": token, "email_sent": email_sent} 
 
 @router.get("/invites")
 def list_invites(
@@ -188,18 +197,103 @@ def list_invites(
         invites.append(doc)
     return invites
 
+@router.post("/invites/{invite_id}/resend")
+@limiter.limit("5/minute")
+def resend_invite(
+    request: Request,
+    invite_id: str,
+    current_user: UserInDB = Depends(get_current_user_with_org),
+    _ = Depends(RoleChecker(["owner", "admin"]))
+):
+    try:
+        oid = ObjectId(invite_id)
+    except:
+        raise HTTPException(400, "Invalid ID format")
+
+    invites_coll = get_invites_collection()
+    invite = invites_coll.find_one({"_id": oid, "org_id": current_user.org_id})
+    if not invite:
+        raise HTTPException(404, "Invite not found")
+        
+    if invite.get("status") != "pending":
+         raise HTTPException(400, f"Cannot resend an invite with status '{invite.get('status')}'")
+
+    # If expired, regenerate token and extend expiry
+    if invite.get("expires_at") and invite["expires_at"] < datetime.utcnow():
+        new_token = secrets.token_urlsafe(32)
+        new_expiry = datetime.utcnow() + timedelta(days=7)
+        invites_coll.update_one(
+            {"_id": oid},
+            {"$set": {"token": new_token, "expires_at": new_expiry}}
+        )
+        invite["token"] = new_token
+        invite["expires_at"] = new_expiry
+
+    token = invite["token"]
+    email = invite["email"]
+    invite_link = f"{os.getenv('FRONTEND_ORIGIN')}/login?invite={token}"
+
+    email_sent = False
+    for attempt in range(3):
+        try:
+            send_postmark_email(
+                campaign_id="system-invite-resend",
+                lead_id="system",
+                to_email=email,
+                from_email=os.getenv("POSTMARK_FROM_EMAIL", "support@connecttr.com"),
+                subject="Reminder: You've been invited to Connecttr",
+                text_body=f"You have been invited to join an organization on Connecttr.\n\nClick here to accept: {invite_link}\n\nThis link expires in 7 days.",
+                html_body=f"<p>You have been invited to join an organization on Connecttr.</p><p><a href='{invite_link}'>Accept Invite</a></p><p>This link expires in 7 days.</p>"
+            )
+            email_sent = True
+            break
+        except Exception as e:
+            logger.error(f"Invite resend email failed on attempt {attempt+1}", exc_info=True)
+            time.sleep(2 ** attempt)
+
+    if not email_sent:
+        logger.error("All email resend retries failed.", extra={"email": email, "invite_id": invite_id})
+        # We don't crash, let frontend handle it gracefully
+        return {"ok": False, "message": "Email sending failed", "token": token}
+
+    get_audit_collection().insert_one({
+        "org_id": current_user.org_id,
+        "user_id": current_user.id,
+        "action": "invite_resent",
+        "resource": "org",
+        "metadata": {"invite_id": invite_id, "email": email},
+        "timestamp": datetime.utcnow()
+    })
+    
+    logger.info("Invite resent", extra={"invite_id": invite_id, "email": email, "org_id": current_user.org_id})
+    return {"ok": True, "message": "Invite resent successfully"}
+
 @router.delete("/invites/{invite_id}")
 def revoke_invite(
     invite_id: str,
     current_user: UserInDB = Depends(get_current_user_with_org),
     _ = Depends(RoleChecker(["owner", "admin"]))
 ):
-    from bson import ObjectId
+    try:
+        oid = ObjectId(invite_id)
+    except:
+        raise HTTPException(400, "Invalid ID format")
+        
     invites_coll = get_invites_collection()
-    invites_coll.update_one(
-        {"_id": ObjectId(invite_id), "org_id": current_user.org_id},
+    res = invites_coll.update_one(
+        {"_id": oid, "org_id": current_user.org_id},
         {"$set": {"status": "revoked"}}
     )
+    if res.modified_count > 0:
+        get_audit_collection().insert_one({
+            "org_id": current_user.org_id,
+            "user_id": current_user.id,
+            "action": "invite_revoked",
+            "resource": "org",
+            "metadata": {"invite_id": invite_id},
+            "timestamp": datetime.utcnow()
+        })
+        logger.info("Invite revoked", extra={"invite_id": invite_id, "org_id": current_user.org_id})
     return {"ok": True}
 
 # --- Usage & Alerts ---
