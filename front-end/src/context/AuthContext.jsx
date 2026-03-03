@@ -19,8 +19,12 @@ export const AuthProvider = ({ children }) => {
             });
             if (res.ok) {
                 const userData = await res.json();
-                setUser(userData);
+                console.log("[AuthContext] /auth/me raw response:", userData);
+                const flattenedUser = userData.user ? userData.user : userData;
+                console.log("[AuthContext] Flattened user set to state:", flattenedUser);
+                setUser(flattenedUser);
             } else {
+                console.log("[AuthContext] /auth/me failed. Status:", res.status);
                 setUser(null);
             }
         } catch (e) {
