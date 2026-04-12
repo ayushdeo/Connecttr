@@ -13,6 +13,24 @@ from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+IS_PRODUCTION = bool(os.getenv("RENDER") or os.getenv("ENV") == "production")
+
+def _get_backend_public_url() -> str:
+    url = os.getenv("BACKEND_PUBLIC_URL")
+    if url:
+        return url.rstrip("/")
+    if IS_PRODUCTION:
+        raise HTTPException(status_code=500, detail="BACKEND_PUBLIC_URL not configured")
+    return "http://localhost:8000"
+
+def _get_frontend_origin() -> str:
+    url = os.getenv("FRONTEND_ORIGIN")
+    if url:
+        return url.rstrip("/")
+    if IS_PRODUCTION:
+        raise HTTPException(status_code=500, detail="FRONTEND_ORIGIN not configured")
+    return "http://localhost:3000"
+
 # --- OAuth Setup ---
 # Authlib requires a config backend, we can use os.environ via Starlette Config
 config = Config(environ=os.environ)
@@ -39,15 +57,63 @@ async def login_google(request: Request):
     """
     Redirects user to Google Login page.
     """
-    # Create the redirect URI using env var
-    backend_url = os.getenv('BACKEND_PUBLIC_URL')
-    if not backend_url:
-        raise HTTPException(status_code=500, detail="BACKEND_PUBLIC_URL not configured")
-    
-    redirect_uri = f"{backend_url.rstrip('/')}/auth/callback/google"
-    print(f"DEBUG: Redirecting to Google with callback: {redirect_uri}")
-    print(f"DEBUG: GOOGLE_CLIENT_ID: {os.getenv('GOOGLE_CLIENT_ID')}")
+    # Create the redirect URI using env var (defaulting safely in local dev)
+    if IS_PRODUCTION and (not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET")):
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+
+    backend_url = _get_backend_public_url()
+    redirect_uri = f"{backend_url}/auth/callback/google"
     return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+def _build_auth_response(request: Request, user_id: str, redirect_path: str = "/"):
+    refresh_token = secrets.token_urlsafe(64)
+    refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+
+    get_sessions_collection().insert_one({
+        "user_id": user_id,
+        "refresh_token_hash": refresh_token_hash,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(days=30),
+        "user_agent": request.headers.get("user-agent"),
+        "ip": request.client.host if request.client else None
+    })
+
+    access_token = create_access_token(subject=user_id)
+    frontend_url = _get_frontend_origin()
+    response = RedirectResponse(url=f"{frontend_url}{redirect_path}")
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
+        max_age=30 * 60
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
+        max_age=30 * 24 * 60 * 60
+    )
+    return response
+
+
+@router.get("/dev-login")
+async def dev_login(request: Request, email: str):
+    if IS_PRODUCTION:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    users_coll = get_users_collection()
+    user = users_coll.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_id = str(user["_id"])
+    users_coll.update_one({"_id": user["_id"]}, {"$set": {"last_login": datetime.utcnow()}})
+    return _build_auth_response(request, user_id, redirect_path="/")
 
 
 from app.db import get_users_collection, get_orgs_collection, get_audit_collection, get_sessions_collection, get_invites_collection
@@ -76,7 +142,7 @@ async def auth_callback_google(request: Request):
     except Exception as e:
         print(f"OAuth Error: {e}")
         return RedirectResponse(
-            url=f"{os.getenv('FRONTEND_ORIGIN')}/login?error=oauth_failed"
+            url=f"{_get_frontend_origin()}/login?error=oauth_failed"
         )
     
     # 2. Extract Data
@@ -172,50 +238,7 @@ async def auth_callback_google(request: Request):
         })
 
     # 4. Session & Token Issuance
-    # Generate Refresh Token
-    refresh_token = secrets.token_urlsafe(64)
-    refresh_token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
-    
-    # Store Session
-    get_sessions_collection().insert_one({
-        "user_id": user_id,
-        "refresh_token_hash": refresh_token_hash,
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=30),
-        "user_agent": request.headers.get("user-agent"),
-        "ip": request.client.host if request.client else None
-    })
-    
-    # Create Access Token
-    access_token = create_access_token(subject=user_id)
-    
-    # 5. Redirect to Frontend with Cookie
-    frontend_url = os.getenv("FRONTEND_ORIGIN")
-    if not frontend_url:
-         raise HTTPException(status_code=500, detail="FRONTEND_ORIGIN not configured")
-         
-    response = RedirectResponse(url=f"{frontend_url.rstrip('/')}/email-hub")
-    
-    # STRICT COOKIES
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=True, 
-        samesite="none",
-        max_age=30 * 60 # Short lived access token (e.g. 30 mins)
-    )
-    
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="none",
-        max_age=30 * 24 * 60 * 60
-    )
-    
-    return response
+    return _build_auth_response(request, user_id, redirect_path="/")
 
 @router.post("/refresh")
 async def refresh_token_endpoint(request: Request):
@@ -251,24 +274,24 @@ async def refresh_token_endpoint(request: Request):
         key="access_token",
         value=new_access_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
         max_age=30 * 60 
     )
     response.set_cookie(
         key="refresh_token",
         value=new_refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
         max_age=30 * 24 * 60 * 60
     )
     response.set_cookie(
         key="refresh_token",
         value=new_refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
         max_age=30 * 24 * 60 * 60
     )
     return response

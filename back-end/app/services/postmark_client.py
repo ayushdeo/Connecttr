@@ -1,7 +1,8 @@
 import os, requests, uuid
 from dotenv import load_dotenv, find_dotenv
 
-load_dotenv(find_dotenv(filename="apiKey.env", usecwd=True))
+# Load the standard backend .env when this module is imported outside app.main.
+load_dotenv(find_dotenv())
 
 POSTMARK_TOKEN = os.getenv("POSTMARK_TOKEN")          # Server token
 POSTMARK_STREAM = os.getenv("POSTMARK_BROADCAST")     # e.g., "broadcast"

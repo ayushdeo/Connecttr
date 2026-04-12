@@ -13,12 +13,15 @@ load_dotenv(env_path)
 BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL")
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN")
 
+IS_PRODUCTION = bool(os.getenv("RENDER") or os.getenv("ENV") == "production")
+
 if not BACKEND_PUBLIC_URL or not FRONTEND_ORIGIN:
-    # Only raise error if we are not in a local dev environment or if we want strict production mode.
-    # Given the requirement "Fail startup if missing", we raise it.
-    # You might want to skip this check if running locally for dev, but the prompt says 
-    # "Final production hardening... Require these env vars... Fail startup if missing"
-    raise RuntimeError("CRITICAL: Missing BACKEND_PUBLIC_URL or FRONTEND_ORIGIN environment variables.")
+    if IS_PRODUCTION:
+        raise RuntimeError(
+            "CRITICAL: Missing BACKEND_PUBLIC_URL or FRONTEND_ORIGIN environment variables."
+        )
+    BACKEND_PUBLIC_URL = BACKEND_PUBLIC_URL or "http://localhost:8000"
+    FRONTEND_ORIGIN = FRONTEND_ORIGIN or "http://localhost:3000"
 
 
 from app.api.campaigns import router as campaigns_router
@@ -62,7 +65,7 @@ from app.core.security import SECRET_KEY
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
-    https_only=True,     # Strictly HTTPS
+    https_only=IS_PRODUCTION,  # Local dev uses http://
     same_site="lax",     # or "none" if cross-site, but usually 'lax' is safer for top-level nav unless specific cross-site needs
     max_age=3600
 )

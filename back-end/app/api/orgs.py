@@ -8,8 +8,8 @@ from bson import ObjectId
 logger = logging.getLogger(__name__)
 
 from app.db import (
-    get_users_collection, get_orgs_collection, get_invites_collection, 
-    get_alerts_collection, get_database
+    get_users_collection, get_orgs_collection, get_invites_collection,
+    get_alerts_collection, get_audit_collection, get_database
 )
 from app.core.deps import get_current_user_with_org, RoleChecker
 from app.models.user_model import UserInDB
