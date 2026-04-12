@@ -16,6 +16,11 @@ class CampaignCreateIn(BaseModel):
     website: str | None = None
     brief: dict
 
+class CampaignUpdateIn(BaseModel):
+    name: str | None = None
+    website: str | None = None
+    brief: dict | None = None
+
 class CampaignOut(BaseModel):
     id: str
     name: str
@@ -72,6 +77,32 @@ def get_campaign(cid: str, current_user: UserInDB = Depends(get_current_user_wit
     if "_id" in camp: del camp["_id"]
     return camp
 
+@store_router.patch("/{cid}", response_model=CampaignOut)
+def update_campaign(payload: CampaignUpdateIn, cid: str, current_user: UserInDB = Depends(get_current_user_with_org)):
+    collection = get_campaigns_collection()
+    camp = collection.find_one({"id": cid, "org_id": current_user.org_id})
+    if not camp:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    updates = payload.dict(exclude_unset=True)
+    if "website" in updates and not updates["website"]:
+        updates["website"] = None
+
+    if updates:
+        collection.update_one({"id": cid, "org_id": current_user.org_id}, {"$set": updates})
+        get_audit_collection().insert_one({
+            "org_id": current_user.org_id,
+            "user_id": current_user.id,
+            "action": "update_campaign",
+            "resource": f"campaign/{cid}",
+            "timestamp": datetime.utcnow()
+        })
+        camp.update(updates)
+
+    if "_id" in camp:
+        del camp["_id"]
+    return camp
+
 # --- alias for external imports ---
 # WARNING: Internal server calls usually don't have user context easily. 
 # But discover_campaign calls this. It SHOULD pass user context or org_id.
@@ -92,4 +123,4 @@ def get_campaign_by_id(cid: str, org_id: str = None):
     if camp and "_id" in camp: del camp["_id"]
     return camp
 
-campaign_store_router = store_router 
+campaign_store_router = store_router

@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 log = logging.getLogger("nexus")
 
-SCRAPEDO_TOKEN = os.getenv("SCRAPEDO_TOKEN")
+SCRAPEDO_TOKEN = os.getenv("SCRAPEDO_TOKEN") or os.getenv("SCRAPE_DO_TOKEN")
 SOCIAL_HOSTS = {"linkedin.com","www.linkedin.com","twitter.com","x.com","reddit.com","www.reddit.com"}
 EXCLUDE_DOMAINS_DEFAULT = {
     # aggregators/competitors

@@ -18,6 +18,12 @@ from fastapi import Depends
 from app.core.deps import get_current_user_with_org
 from app.models.user_model import UserInDB
 
+IS_PRODUCTION = bool(os.getenv("RENDER") or os.getenv("ENV") == "production")
+
+def include_legacy_emailhub_data() -> bool:
+    """Local-only escape hatch for inspecting legacy/demo inbox records."""
+    return (not IS_PRODUCTION) and os.getenv("EMAILHUB_INCLUDE_LEGACY_DATA", "").lower() in {"1", "true", "yes"}
+
 # ---- models
 class Lead(BaseModel):
     id: str
@@ -46,15 +52,10 @@ class SendReq(BaseModel):
 # ---- leads
 @router.get("/leads")
 def list_leads(current_user: UserInDB = Depends(get_current_user_with_org)):
-    # Return all leads from MongoDB that have been imported (or all of them?)
-    # The original logic segregated leads in email_db.json. 
-    # Now valid leads are in the 'leads' collection.
-    # We might want to filter only those that have 'email' and are 'event_buyer_candidate'?
-    # Or just return all 'leads' in the DB.
-    # For now, let's return all.
     collection = get_leads_collection()
     leads = []
-    for doc in collection.find():
+    query = {} if include_legacy_emailhub_data() else {"org_id": current_user.org_id}
+    for doc in collection.find(query).sort("created_at", -1):
         doc["id"] = str(doc.get("id") or doc.get("_id"))
         if "_id" in doc: del doc["_id"]
         leads.append(doc)
@@ -66,7 +67,7 @@ from app.services.email_service import upsert_leads_to_hub
 def import_leads(items: List[Lead], current_user: UserInDB = Depends(get_current_user_with_org)):
     # Convert Pydantic models to dicts
     data = [l.dict() for l in items]
-    count = upsert_leads_to_hub(data)
+    count = upsert_leads_to_hub(data, org_id=current_user.org_id)
     return {"count": count, "message": "Imported successfully"}
 
 # ---- templates (LLM)
@@ -74,12 +75,12 @@ def import_leads(items: List[Lead], current_user: UserInDB = Depends(get_current
 def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_current_user_with_org)):
     collection = get_leads_collection()
     # match by 'id' field (string) or '_id'
-    lead = collection.find_one({"id": body.lead_id})
+    lead = collection.find_one({"id": body.lead_id, "org_id": current_user.org_id})
     if not lead:
         # try _id?
         try:
             from bson.objectid import ObjectId
-            lead = collection.find_one({"_id": ObjectId(body.lead_id)})
+            lead = collection.find_one({"_id": ObjectId(body.lead_id), "org_id": current_user.org_id})
         except:
              pass
 
@@ -92,7 +93,7 @@ def make_templates(body: TemplateReq, current_user: UserInDB = Depends(get_curre
 
     # Fetch actual campaign context
     campaigns = get_database()["campaigns"]
-    camp = campaigns.find_one({"id": body.campaign_id})
+    camp = campaigns.find_one({"id": body.campaign_id, "org_id": current_user.org_id})
     real_brief = camp.get("brief", {}) if camp else {}
     real_brief["id"] = body.campaign_id
 
@@ -152,7 +153,7 @@ def send_email(request: Request, body: SendReq, current_user: UserInDB = Depends
     lead = None
     if body.campaign_id == "default":
         if not body.to_email: raise HTTPException(400, "to_email is required for manual sends")
-        existing = leads_col.find_one({"email": body.to_email})
+        existing = leads_col.find_one({"email": body.to_email, "org_id": current_user.org_id})
         if existing:
             lead = existing
             if "_id" in lead: lead["id"] = str(lead.get("id") or lead.get("_id"))
@@ -169,11 +170,11 @@ def send_email(request: Request, body: SendReq, current_user: UserInDB = Depends
             }
             leads_col.insert_one(lead)
     else:
-        lead = leads_col.find_one({"id": body.lead_id})
+        lead = leads_col.find_one({"id": body.lead_id, "org_id": current_user.org_id})
         if not lead:
              try:
                 from bson import ObjectId
-                lead = leads_col.find_one({"_id": ObjectId(body.lead_id)})
+                lead = leads_col.find_one({"_id": ObjectId(body.lead_id), "org_id": current_user.org_id})
              except: pass
         if not lead: raise HTTPException(404, "Lead not found")
         if lead.get("do_not_contact"): raise HTTPException(400, "Lead is marked as Do Not Contact")
@@ -207,6 +208,7 @@ def send_email(request: Request, body: SendReq, current_user: UserInDB = Depends
         "direction": "outbound", 
         "provider": "postmark",
         "provider_msg_id": resp.get("MessageID"), 
+        "org_id": current_user.org_id,
         "subject": body.draft.get("subject",""),
         "text": body.draft.get("body",""), 
         "sent_variant": final_choice, # A | B | C
@@ -237,8 +239,33 @@ def send_email(request: Request, body: SendReq, current_user: UserInDB = Depends
 # ---- thread
 @router.get("/threads/{lead_id}")
 def thread(lead_id: str, current_user: UserInDB = Depends(get_current_user_with_org)):
+    leads_col = get_leads_collection()
     emails_col = get_emails_collection()
-    cursor = emails_col.find({"lead_id": lead_id}).sort("created_at", 1)
+    legacy_mode = include_legacy_emailhub_data()
+    lead_query = {"id": lead_id} if legacy_mode else {"id": lead_id, "org_id": current_user.org_id}
+
+    lead = leads_col.find_one(lead_query)
+    if not lead:
+        try:
+            from bson import ObjectId
+            object_query = {"_id": ObjectId(lead_id)} if legacy_mode else {"_id": ObjectId(lead_id), "org_id": current_user.org_id}
+            lead = leads_col.find_one(object_query)
+        except:
+            lead = None
+
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+
+    canonical_lead_id = str(lead.get("id") or lead.get("_id"))
+    email_query = {"lead_id": canonical_lead_id} if legacy_mode else {
+        "lead_id": canonical_lead_id,
+        "$or": [
+            {"org_id": current_user.org_id},
+            {"org_id": {"$exists": False}},
+            {"org_id": None},
+        ],
+    }
+    cursor = emails_col.find(email_query).sort("created_at", 1)
     msgs = []
     for m in cursor:
         m["id"] = str(m.get("id") or m.get("_id"))

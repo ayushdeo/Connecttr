@@ -1,9 +1,9 @@
 
 import React, { useState } from "react";
 import { API } from "../config";
-import { ArrowRight, Globe } from "lucide-react";
+import { ArrowLeft, ArrowRight, Globe } from "lucide-react";
 
-const StartNewCampaign = ({ onNext }) => {
+const StartNewCampaign = ({ onNext, onBack }) => {
   const [website, setWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -56,20 +56,33 @@ const StartNewCampaign = ({ onNext }) => {
 
         {err && <div className="text-rose-400 text-sm mb-4 bg-rose-400/10 py-2 px-3 rounded-lg border border-rose-400/20">{err}</div>}
 
-        <button
-          onClick={handleProceed}
-          disabled={loading}
-          className="w-full bg-royal-amethyst hover:bg-royal-amethyst/90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-royal-amethyst/20 flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <span>Analyzing...</span>
-          ) : (
-            <>
-              <span>Proceed</span>
-              <ArrowRight size={16} />
-            </>
+        <div className="flex gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              disabled={loading}
+              className="px-5 py-3 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all font-medium flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <ArrowLeft size={16} />
+              <span>Back</span>
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={handleProceed}
+            disabled={loading}
+            className={`${onBack ? "flex-1" : "w-full"} bg-royal-amethyst hover:bg-royal-amethyst/90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-royal-amethyst/20 flex items-center justify-center gap-2`}
+          >
+            {loading ? (
+              <span>Analyzing...</span>
+            ) : (
+              <>
+                <span>Proceed</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </div>
 
         <div className="mt-6 pt-6 border-t border-white/5 text-sm text-soft-violet">
           <span>Don't have a website?</span>{" "}

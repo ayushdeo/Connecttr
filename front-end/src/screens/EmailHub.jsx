@@ -51,11 +51,37 @@ const parseMessageContent = (text) => {
   return { fresh: text, quoted: null };
 };
 
+const getLeadDisplayName = (lead) => {
+  if (!lead) return "Unknown Lead";
+  if (lead.name?.trim()) return lead.name.trim();
+  if (lead.email?.trim()) return lead.email.trim().split("@")[0];
+  return "Unknown Lead";
+};
+
+const getLeadFirstName = (lead) => getLeadDisplayName(lead).split(/\s+/)[0] || "there";
+
+const formatLeadDate = (timestamp) => {
+  const date = typeof timestamp === "number" ? new Date(timestamp * 1000) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "Unknown";
+};
+
+const formatMessageDate = (timestamp) => {
+  const date = typeof timestamp === "number" ? new Date(timestamp * 1000) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "numeric" })
+    : "Unknown time";
+};
+
 // Component: Message Card
 const MessageCard = ({ message, isLatest, senderName }) => {
   const [expanded, setExpanded] = useState(false);
   const { fresh, quoted } = parseMessageContent(message.text);
   const isOutbound = message.direction === 'outbound';
+  const safeSenderName = senderName || "Contact";
+  const senderInitial = safeSenderName.charAt(0).toUpperCase() || "C";
+  const safeSubject = message.subject || "(no subject)";
 
   return (
     <div className={`flex w-full mb-8 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
@@ -67,14 +93,12 @@ const MessageCard = ({ message, isLatest, senderName }) => {
         <div className={`flex items-end gap-3 mb-2 ${isOutbound ? "flex-row-reverse" : "flex-row"}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-lg 
             ${isOutbound ? "bg-royal-amethyst text-white" : "bg-slate border border-white/10 text-soft-violet"}`}>
-            {isOutbound ? "You" : senderName.charAt(0)}
+            {isOutbound ? "You" : senderInitial}
           </div>
           <div className={`flex flex-col text-xs ${isOutbound ? "items-end" : "items-start"}`}>
-            <span className="font-bold text-white">{isOutbound ? "You" : senderName}</span>
+            <span className="font-bold text-white">{isOutbound ? "You" : safeSenderName}</span>
             <span className="text-soft-violet/60">
-              {new Date(message.created_at * 1000).toLocaleString(undefined, {
-                weekday: 'short', hour: 'numeric', minute: 'numeric'
-              })}
+              {formatMessageDate(message.created_at)}
             </span>
           </div>
         </div>
@@ -89,7 +113,7 @@ const MessageCard = ({ message, isLatest, senderName }) => {
 
           {/* Subject (Only if different context or first message, simplified for now: always show small) */}
           <div className="text-[10px] uppercase tracking-wider font-semibold opacity-40 mb-3 truncate">
-            {message.subject}
+            {safeSubject}
           </div>
 
           {/* Body */}
@@ -213,11 +237,13 @@ const EmailHub = () => {
       try {
         const r = await fetch(`${API}/emailhub/threads/${selectedLead.id}`, { credentials: 'include' });
         const data = await r.json();
-        setThread(data.messages || []);
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        setThread(messages);
 
         // Pre-fill composer for REPLY
-        const lastMsg = data.messages?.[data.messages.length - 1];
-        const replySubject = lastMsg ? (lastMsg.subject.startsWith("Re:") ? lastMsg.subject : `Re: ${lastMsg.subject}`) : "Connecttr Outreach";
+        const lastMsg = messages[messages.length - 1];
+        const lastSubject = lastMsg?.subject || "Connecttr Outreach";
+        const replySubject = lastSubject.startsWith("Re:") ? lastSubject : `Re: ${lastSubject}`;
 
         setComposer(prev => ({
           ...prev,
@@ -347,8 +373,15 @@ const EmailHub = () => {
   };
 
   const filteredLeads = leads.filter(l => {
-    if (search && !l.name?.toLowerCase().includes(search.toLowerCase()) && !l.email?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === "Unread" && l.status !== "Responded") return false;
+    const query = search.toLowerCase();
+    if (
+      query &&
+      !getLeadDisplayName(l).toLowerCase().includes(query) &&
+      !l.email?.toLowerCase().includes(query) &&
+      !l.company?.toLowerCase().includes(query)
+    ) {
+      return false;
+    }
     if (filter === "Responded" && l.status !== "Responded") return false;
     return true;
   });
@@ -407,13 +440,13 @@ const EmailHub = () => {
               >
                 <div className="flex justify-between mb-1">
                   <span className={`font-semibold text-sm truncate ${selectedLead?.id === lead.id ? "text-white" : "text-mist"}`}>
-                    {lead.name || "Unknown"}
+                    {getLeadDisplayName(lead)}
                   </span>
                   <span className="text-[10px] text-soft-violet/70">
-                    {new Date(lead.created_at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    {formatLeadDate(lead.created_at)}
                   </span>
                 </div>
-                <div className="text-xs text-soft-violet truncate mb-2">{lead.company}</div>
+                <div className="text-xs text-soft-violet truncate mb-2">{lead.company || "No company"}</div>
 
                 <div className="flex items-center justify-between">
                   <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1
@@ -441,13 +474,13 @@ const EmailHub = () => {
             <div className="h-16 border-b border-white/5 flex items-center px-6 justify-between bg-ink/50 backdrop-blur-sm z-10 sticky top-0">
               <div>
                 <h3 className="font-bold text-lg text-white flex items-center gap-2">
-                  {selectedLead.name}
+                  {getLeadDisplayName(selectedLead)}
                   {selectedLead.status === "Responded" && <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>}
                 </h3>
                 <div className="flex items-center gap-3 text-xs text-soft-violet mt-0.5">
-                  <span className="flex items-center gap-1.5"><Building size={10} /> {selectedLead.company}</span>
+                  <span className="flex items-center gap-1.5"><Building size={10} /> {selectedLead.company || "Unknown company"}</span>
                   <span className="w-1 h-1 rounded-full bg-white/10"></span>
-                  <span className="flex items-center gap-1.5"><User size={10} /> {selectedLead.role}</span>
+                  <span className="flex items-center gap-1.5"><User size={10} /> {selectedLead.role || "Unknown role"}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -465,14 +498,14 @@ const EmailHub = () => {
               ) : thread.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-soft-violet/40">
                   <Sparkles size={48} className="mb-4 opacity-20" />
-                  <p className="text-sm">Start the conversation with {selectedLead.name.split(' ')[0]}</p>
+                  <p className="text-sm">Start the conversation with {getLeadFirstName(selectedLead)}</p>
                 </div>
               ) : (
                 thread.map((m, idx) => (
                   <MessageCard
                     key={m.id || idx}
                     message={m}
-                    senderName={selectedLead.name}
+                    senderName={getLeadDisplayName(selectedLead)}
                     isLatest={idx === thread.length - 1}
                   />
                 ))

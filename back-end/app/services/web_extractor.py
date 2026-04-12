@@ -252,7 +252,7 @@ def extract_main_text(url: str, timeout: int = 20) -> tuple[str, dict]:
         should_fallback = is_js_shell or len(text) < 600
         
         if should_fallback:
-            TOKEN = os.getenv("SCRAPE_DO_TOKEN")
+            TOKEN = os.getenv("SCRAPEDO_TOKEN") or os.getenv("SCRAPE_DO_TOKEN")
             if TOKEN:
                 meta["method"] = "scrapedo"
                 meta["fallback_reason"] = "js_shell" if is_js_shell else "low_text_yield"

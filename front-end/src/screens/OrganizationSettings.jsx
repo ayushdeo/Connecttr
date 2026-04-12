@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Mail, UserPlus, ShieldAlert, Trash2, Send, RotateCw, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Users, Mail, UserPlus, ShieldAlert, Trash2, Send, RotateCw, X, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import api from '../utils/api'; // Assuming you have an axios wrapper or fetch utility
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function OrganizationSettings() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [members, setMembers] = useState([]);
     const [invites, setInvites] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -152,6 +154,13 @@ export default function OrganizationSettings() {
 
             {/* Header */}
             <div className="mb-8">
+                <button
+                    type="button"
+                    onClick={() => navigate('/settings')}
+                    className="text-sm text-soft-violet hover:text-white mb-4 flex items-center gap-2 transition-colors"
+                >
+                    <ArrowLeft size={14} /> Back to Settings
+                </button>
                 <h1 className="text-3xl font-bold text-white mb-2">Organization Settings</h1>
                 <p className="text-soft-violet text-lg">Manage members and invites for your workspace.</p>
             </div>

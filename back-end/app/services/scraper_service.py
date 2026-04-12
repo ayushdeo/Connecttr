@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from app.db import get_leads_collection
 
 # ------------------- CONFIG -------------------
-TOKEN = os.getenv("SCRAPE_DO_TOKEN", "REDACTED_ROTATED_TOKEN")
+TOKEN = os.getenv("SCRAPEDO_TOKEN") or os.getenv("SCRAPE_DO_TOKEN")
 
 DEFAULT_SEARCH_QUERY = (
     '('

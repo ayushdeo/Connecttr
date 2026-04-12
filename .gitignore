@@ -1,10 +1,15 @@
 front-end/node_modules
 front-end/build
 front-end/.env*
+!front-end/.env.example
 back-end/.venv
 back-end/venv
 __pycache__/
 *.pyc
+*.log
+*.err
+*.out
+~$*.docx
 back-end/apiKey.env
 back-end/.env
 back-end/app/data/*.json
