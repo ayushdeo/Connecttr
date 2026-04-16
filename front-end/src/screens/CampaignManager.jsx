@@ -7,8 +7,8 @@ import { API } from "../config";
 import { Search, Plus, ExternalLink, ArrowRight, Activity, Globe, FileText, Check, HelpCircle } from "lucide-react";
 
 // Helper components
-const Chip = ({ children }) => (
-  <span className="text-[10px] uppercase font-bold text-white bg-white/10 border border-white/5 px-2 py-1 rounded-md">{children}</span>
+const Chip = ({ children, className = "" }) => (
+  <span className={`text-[10px] uppercase font-bold text-white bg-white/10 border border-white/5 px-2 py-1 rounded-md ${className}`}>{children}</span>
 );
 
 const InfoTooltip = ({ text }) => (
@@ -108,7 +108,7 @@ const CampaignCard = ({ campaign, favicon, domain, onView, onGenerate, generatin
 
 const CampaignManager = ({ onNavigate = () => { } }) => {
   // Recompile trigger
-  const [stage, setStage] = useState("list"); // list | collect | fallback | review | view
+  const [stage, setStage] = useState("list"); // list | collect | fallback | review | view | success
   const [campaigns, setCampaigns] = useState([]);
   const [draft, setDraft] = useState(null);   // { website, brief }
   const [current, setCurrent] = useState(null);
@@ -118,6 +118,10 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [busy, setBusy] = useState(false);
+  
+  // NEW UX STATES
+  const [importResult, setImportResult] = useState(null); // { count, preview, campaign }
+  const [errorMsg, setErrorMsg] = useState("");
 
   const domainFromUrl = (u) => {
     try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; }
@@ -140,16 +144,18 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     setBusyId(c.id);
     setShowLoading(true);
     setLoadingDone(false);
+    setErrorMsg("");
     try {
       const r = await fetch(`${API}/campaigns/${c.id}/discover`, { method: "POST", credentials: 'include' });
-      if (!r.ok) {
-        throw new Error(`Discover failed (${r.status})`);
-      }
       const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || `Discover failed (${r.status})`);
+      
       console.log("Imported", data.imported, "leads for", c.name);
+      setImportResult({ count: data.imported || 0, preview: data.preview || [], campaign: c });
       setLoadingDone(true);
     } catch (e) {
-      alert(e.message || "Lead discovery failed.");
+      console.error(e);
+      setErrorMsg(e.message || "Lead discovery failed to run.");
       setShowLoading(false);
     } finally {
       setBusyId(null);
@@ -161,16 +167,17 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     setBusy(true);
     setShowLoading(true);
     setLoadingDone(false);
+    setErrorMsg("");
     try {
       const r = await fetch(`${API}/campaigns/${current.id}/discover`, { method: "POST", credentials: 'include' });
-      if (!r.ok) {
-        throw new Error(`Discover failed (${r.status})`);
-      }
-      await r.json().catch(() => ({}));
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || `Discover failed (${r.status})`);
+      
+      setImportResult({ count: data.imported || 0, preview: data.preview || [], campaign: current });
       setLoadingDone(true);
     } catch (e) {
       console.error(e);
-      alert("Lead discovery failed.");
+      setErrorMsg(e.message || "Lead discovery failed.");
       setShowLoading(false);
     } finally {
       setBusy(false);
@@ -337,6 +344,13 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
           <ArrowRight size={14} className="rotate-180" /> Back to Campaigns
         </button>
 
+        {errorMsg && (
+          <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start justify-between">
+            <div className="text-rose-400 text-sm font-medium">{errorMsg}</div>
+            <button onClick={() => setErrorMsg("")} className="text-white/50 hover:text-white">✕</button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 bg-slate p-6 rounded-2xl border border-white/5 shadow-2xl">
           <div className="flex items-center gap-4">
@@ -368,7 +382,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
                 onComplete={() => {
                   setShowLoading(false);
                   setLoadingDone(false);
-                  if (onNavigate) onNavigate("emailhub");
+                  setStage("success");
                 }}
               />
             </div>
@@ -441,9 +455,67 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     );
   }
 
+  if (stage === "success" && importResult) {
+    const { count, preview, campaign } = importResult;
+    return (
+      <div className="p-8 max-w-4xl mx-auto min-h-[80vh] flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+        <div className="bg-slate rounded-3xl border border-white/5 p-10 w-full shadow-2xl backdrop-blur-sm">
+          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/20">
+            <Check size={40} className="text-green-400" />
+          </div>
+          <h2 className="text-4xl font-bold text-white mb-2 text-center">Discovery Complete!</h2>
+          <p className="text-mist mb-8 text-lg text-center">We successfully generated <span className="text-white font-bold">{count} highly targeted leads</span> for {campaign?.name}.</p>
+          
+          {preview && preview.length > 0 && (
+            <div className="bg-white/5 rounded-xl border border-white/5 mb-8 overflow-hidden text-left shadow-lg">
+              <div className="px-6 py-4 border-b border-white/5 bg-white/5 font-semibold text-white">Lead Snapshot</div>
+              <div className="divide-y divide-white/5">
+                {preview.map((lead, i) => (
+                  <div key={i} className="px-6 py-4 flex flex-wrap gap-4 items-center justify-between hover:bg-white/5 transition-colors">
+                    <div>
+                      <div className="text-white font-medium">{lead.name}</div>
+                      <div className="text-xs text-soft-violet mt-1">{lead.role || "Contact"} @ {lead.company} {lead.score > 0 && `• Intent: ${lead.score}%`}</div>
+                    </div>
+                    {lead.email ? (
+                      <Chip className="bg-green-500/20 text-green-400 border-green-500/30">Email Found</Chip>
+                    ) : (
+                      <Chip className="bg-amber-500/10 text-amber-500/80 border-amber-500/20">Pending Enrichment</Chip>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+            <button
+              onClick={() => { setImportResult(null); setStage("list"); }}
+              className="px-6 py-3 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 transition font-medium text-center"
+            >
+              Back to Campaigns
+            </button>
+            <button
+              onClick={() => onNavigate && onNavigate("emailhub")}
+              className="px-8 py-3 rounded-xl text-white font-bold bg-royal-amethyst hover:bg-royal-amethyst/90 transition shadow-lg shadow-royal-amethyst/20 flex items-center justify-center gap-2"
+            >
+              Go to Email Hub <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // list
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-300">
+      {errorMsg && (
+        <div className="mb-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start justify-between">
+          <div className="text-rose-400 text-sm font-medium">{errorMsg}</div>
+          <button onClick={() => setErrorMsg("")} className="text-white/50 hover:text-white">✕</button>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div>
           <div className="text-soft-violet text-sm font-semibold uppercase tracking-wider mb-1">Overview</div>
@@ -486,7 +558,7 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
             onComplete={() => {
               setShowLoading(false);
               setLoadingDone(false);
-              if (onNavigate) onNavigate("emailhub");
+              setStage("success");
             }}
           />
         </div>
