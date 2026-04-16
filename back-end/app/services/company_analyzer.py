@@ -59,28 +59,43 @@ def analyze_company_brief(basis_text: str, website: Optional[str] = None) -> Dic
 
     system = "You are a B2B lead-gen strategist. Be concise and deterministic."
     user = f"""
-We are setting up an outbound B2B lead generation campaign.
+You are an intelligent analysis engine designed to extract a high-quality outbound campaign profile from any given context.
+Your goal is to make the process feel "magical" by prioritizing automation, accuracy, and rigorous evidence evaluation.
 
 Client website: {website or "(none)"}
 
 BASIS TEXT (from website or user prompt, formatted as Markdown):
-\"\"\"{(basis_text or '')[:20000]}\"\"\"  # truncated at 20k chars
+\"\"\"{(basis_text or '')[:20000]}\"\"\"
 
-Tasks:
-1) Meticulously identify the client's core Unique Selling Proposition (USP) and exact products/services from the text.
-2) Infer their hyper-specific Ideal Customer Profile (ICP). What exact problems do their buyers have?
-3) Propose how to find these buyers online (signals, platforms, and exact search query patterns). Ensure `lead_signals` are highly distinct and not generic.
-4) Provide strict rules to EXCLUDE irrelevant leads (e.g. job postings, supplier portfolios, generic industry tips, completely unrelated sectors).
-5) Output ONLY JSON with this exact shape:
+## EXTRACTION PIPELINE & CLASSIFICATION (Internal Process)
+Before generating output, internally perform these steps:
+1. Classify the page roles (Homepage, About, Services, Pricing, Blog) to weight signal importance.
+2. Extract Metadata (Titles, Heroes, H1-H3).
+3. Evaluate Core Elements (Positioning, offers, target audiences, and explicit pain points).
+4. Extract Structured clues (CTAs, footer links, JSON-LD context if visible).
+
+## CONFIDENCE SCORING RULES
+Evaluate your confidence from 0.0 to 1.0 for the complete profile:
+* 0.9+ → explicitly stated multiple times across the site
+* 0.7–0.89 → clearly implied across credible sources
+* 0.5–0.69 → weak inference
+* <0.5 → unreliable / guess
+Determine the absolute lowest confidence among your core evaluations (Target Audience & Core Offer). Output this exact float as the `quality` score.
+
+## FAILURE HANDLING (CRITICAL)
+You MUST NOT fail. If the content is heavily missing or scraping resulted in a JS-shell, extract whatever partial signals exist, heavily penalize the `quality` score (<0.55), and leave unknown arrays empty. Do NOT hallucinate claims or generic filler.
+
+## OUTPUT SCHEMA (MANDATORY)
+Output ONLY a JSON object matching this exact shape. Combine your deep analysis into these exact keys:
 
 {{
-  "services": [ "string", ... ],
-  "icp_summary": "string",
-  "lead_signals": [ "string", ... ],
-  "search_queries": [ "string", ... ],
-  "exclude_terms": [ "string", ... ],
-  "exclude_domains": [ "string", ... ],
-  "outreach_angles": [ "string", ... ],
+  "services": [ "Exact products or services extracted, backed by site evidence." ],
+  "icp_summary": "Hyper-specific Ideal Customer Profile detailing what problems they have that this company solves.",
+  "lead_signals": [ "Highly distinct intent markers, platforms, or tools the ICP uses." ],
+  "search_queries": [ "Exact search query patterns representing buyer intent." ],
+  "exclude_terms": [ "Strict rules to EXCLUDE irrelevant leads (e.g. job postings, supplier portfolios, generic tips)." ],
+  "exclude_domains": [ "Specific competitor or partner platforms to avoid." ],
+  "outreach_angles": [ "Evidence-backed conversational angles for direct outreach messages." ],
   "quality": 0.0
 }}
 
