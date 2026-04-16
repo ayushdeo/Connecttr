@@ -121,9 +121,6 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
             if _exclude(hit, client_domain, exclude_domains, brief):
                 continue
             d = _domain(hit["url"])
-            if d not in SOCIAL_HOSTS:
-                continue
-            
             sc, reasons = _score(hit, brief)
 
             t_lower = hit["title"].lower()

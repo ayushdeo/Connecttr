@@ -4,7 +4,7 @@ import StartNewCampaign from "./StartNewCampaign";
 import EnterKeywords from "./EnterKeywords";
 import LoadingScreen from "./LoadingScreen";
 import { API } from "../config";
-import { Search, Plus, ExternalLink, ArrowRight, Activity, Globe, FileText, Check, HelpCircle } from "lucide-react";
+import { Search, Plus, ExternalLink, ArrowRight, Activity, Globe, FileText, Check, HelpCircle, Database, Loader2, ArrowUpRight } from "lucide-react";
 
 // Helper components
 const Chip = ({ children, className = "" }) => (
@@ -125,6 +125,27 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("");
 
+  const [campaignLeads, setCampaignLeads] = useState([]);
+  const [loadingCampaignLeads, setLoadingCampaignLeads] = useState(false);
+
+  useEffect(() => {
+    if (stage === "view" && current) {
+      const fetchLeads = async () => {
+         setLoadingCampaignLeads(true);
+         try {
+             // Fetch leads explicitly for this campaign globally via Email Hub
+             const r = await fetch(`${API}/emailhub/leads`, { credentials: 'include' });
+             const data = await r.json();
+             setCampaignLeads(data.filter(l => l.campaign_id === current.id));
+         } catch(e) {
+             console.error(e);
+         } finally {
+             setLoadingCampaignLeads(false);
+         }
+      }
+      fetchLeads();
+    }
+  }, [stage, current]);
   const domainFromUrl = (u) => {
     try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; }
   };
@@ -481,6 +502,97 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
             icon={<ExternalLink size={16} />} 
             tooltip="Suggestions for how the AI Email Writer will draft outbound campaigns."
           />
+        </div>
+
+        {/* --- Injected Lead Intelligence Repository Native to Campaign --- */}
+        <div className="bg-slate rounded-2xl p-6 shadow-xl border border-white/5 mt-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <Database size={20} className="text-royal-amethyst" />
+                        Discovered Leads Repository
+                    </h3>
+                    <p className="text-sm text-soft-violet mt-1">Review explicit AI matchmaking reasons and initiate organic outreach natively for this campaign.</p>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-white/5 bg-midnight-plum/20">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-soft-violet bg-midnight-plum/50">
+                            <th className="py-4 pl-6 pr-4 font-semibold w-1/4">Contact & Role</th>
+                            <th className="py-4 pr-4 font-semibold">Intent Score</th>
+                            <th className="py-4 pr-4 font-semibold w-2/5">AI Match Logic</th>
+                            <th className="py-4 pr-6 font-semibold text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="text-sm align-top">
+                        {loadingCampaignLeads ? (
+                            <tr>
+                                <td colSpan="4" className="py-12 text-center text-soft-violet">
+                                    <Loader2 size={24} className="animate-spin text-royal-amethyst mx-auto mb-2" />
+                                    Syncing datastore...
+                                </td>
+                            </tr>
+                        ) : campaignLeads.length === 0 ? (
+                            <tr>
+                                <td colSpan="4" className="py-12 text-center text-soft-violet italic">
+                                    No leads generated yet for this campaign. Click "Find More Leads" above.
+                                </td>
+                            </tr>
+                        ) : (
+                            campaignLeads.map(lead => (
+                                <tr key={lead.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                                    <td className="py-5 pl-6 pr-4">
+                                        <div className="font-semibold text-white group-hover:text-lilac-mist transition-colors">
+                                            {lead.name}
+                                        </div>
+                                        <div className="text-[11px] text-soft-violet flex items-center gap-1 mt-1 truncate max-w-[200px]">
+                                            <span className="truncate">{lead.role || "Target Persona"}</span>
+                                            <span className="w-1 h-1 rounded-full bg-white/20 flex-shrink-0"></span>
+                                            <span className="truncate">{lead.company}</span>
+                                        </div>
+                                        {lead.status === "Guessed" && (
+                                            <div className="text-[9px] bg-amber-500/20 text-amber-400 mt-1 uppercase px-1 rounded-sm inline-block font-semibold">Guessed Email</div>
+                                        )}
+                                    </td>
+                                    <td className="py-5 pr-4">
+                                        <div className="flex flex-col justify-center">
+                                            <span className={`text-lg font-bold ${lead.score > 75 ? "text-emerald-400" : lead.score > 50 ? "text-amber-400" : "text-rose-400"}`}>
+                                                {lead.score}
+                                            </span>
+                                            <span className="text-[10px] uppercase text-soft-violet/50 font-bold tracking-wider">Metric</span>
+                                        </div>
+                                    </td>
+                                    <td className="py-5 pr-4">
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {(lead.match_reasons || []).map((r, i) => (
+                                                <span key={i} className="px-2 py-1 bg-royal-amethyst/10 border border-royal-amethyst/20 text-lilac-mist rounded text-[10px] uppercase font-bold tracking-wide shadow-sm">
+                                                    {r}
+                                                </span>
+                                            ))}
+                                            {(!lead.match_reasons || lead.match_reasons.length === 0) && (
+                                                <span className="text-xs text-white/30 italic">No explicit signals mapped.</span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="py-5 pr-6 text-right align-middle">
+                                        <button 
+                                            onClick={() => {
+                                                localStorage.setItem('active_lead_draft_id', lead.id);
+                                                if (onNavigate) onNavigate("emailhub");
+                                            }}
+                                            className="px-4 py-2 bg-white/5 hover:bg-royal-amethyst hover:text-white border border-white/10 hover:border-royal-amethyst rounded-xl transition-all text-xs font-bold text-mist inline-flex items-center gap-2 shadow-lg shadow-transparent hover:shadow-royal-amethyst/20"
+                                        >
+                                            Draft Email <ArrowUpRight size={14} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
       </div>
     );

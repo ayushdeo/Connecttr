@@ -46,7 +46,7 @@ def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: Use
             
             # 1) Collection Phase
             leads = []
-            for chunk in discover_from_brief(campaign_id, brief, per_query=6):
+            for chunk in discover_from_brief(campaign_id, brief, per_query=15):
                 if isinstance(chunk, dict):
                     if chunk.get("type") == "progress":
                         # map 0-100 to 5-75
@@ -60,7 +60,7 @@ def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: Use
             yield json.dumps({"type": "progress", "progress": 75, "step": f"Enriching {len(leads)} leads with verified emails..."}) + "\n"
             
             try:
-                for chunk in enrich_leads_with_email(leads, max_to_enrich=20):
+                for chunk in enrich_leads_with_email(leads, max_to_enrich=50):
                     if isinstance(chunk, dict):
                         if chunk.get("type") == "progress":
                             # map inner progress 0-100 to 75-95
