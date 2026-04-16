@@ -39,7 +39,7 @@ const Shell = () => {
       case "emailhub":
         return <EmailHub />;
       case "analytics":
-        return <AnalyticsDashboard />;
+        return <AnalyticsDashboard onNavigate={setActivePage} />;
       case "settings":
       case "settings/organization":
         // Let the URL or activePage state handle this. If it's pure state-based sidebar:
