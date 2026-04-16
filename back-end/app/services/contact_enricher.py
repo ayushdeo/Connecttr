@@ -63,6 +63,19 @@ def _find_contact_links(html, base):
     except Exception:
         return []
 
+def _synthesize_email(name_str, company_domain):
+    domain = company_domain.replace("www.","").lower()
+    if not domain or "linkedin" in domain or "instagram" in domain or "x.com" in domain or "twitter" in domain:
+        return None
+        
+    names = name_str.strip().split() if name_str else []
+    if len(names) >= 2 and len(names[0]) > 0:
+        first = "".join(filter(str.isalpha, names[0].lower()))
+        if first:
+            return f"{first}@{domain}"
+            
+    return f"hello@{domain}"
+
 def enrich_leads_with_email(leads, max_to_enrich=20):
     count = 0
     total = min(len(leads), max_to_enrich)
@@ -94,6 +107,12 @@ def enrich_leads_with_email(leads, max_to_enrich=20):
             lead["status"] = "New"
             count += 1
         else:
-            lead["status"] = "Needs Email"
+            synth = _synthesize_email(lead.get("name",""), lead.get("company",""))
+            if synth:
+                lead["email"] = synth
+                lead["status"] = "Guessed"
+                count += 1
+            else:
+                lead["status"] = "Needs Email"
             
     yield {"type": "result", "leads": leads}
