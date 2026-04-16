@@ -193,7 +193,18 @@ const EmailHub = () => {
     try {
       const r = await fetch(`${API}/emailhub/leads`, { credentials: 'include' });
       const data = await r.json();
-      setLeads(Array.isArray(data) ? data : []);
+      const loadedLeads = Array.isArray(data) ? data : [];
+      setLeads(loadedLeads);
+      
+      const activeDraftId = localStorage.getItem("active_lead_draft_id");
+      if (activeDraftId && loadedLeads.length > 0) {
+          const target = loadedLeads.find(l => l.id === activeDraftId);
+          if (target) {
+              setSelectedLead(target);
+              setTimeout(() => localStorage.removeItem("active_lead_draft_id"), 500);
+          }
+      }
+      
     } catch (e) {
       console.error(e);
       setLeads([]);

@@ -72,15 +72,23 @@ def _score(hit, brief):
     
     # Check for intent overlap
     valuable_hits = 0
+    reasons = []
     for sig in lead_signals:
-        if sig in text: valuable_hits += 1
+        if sig in text: 
+            valuable_hits += 1
+            reasons.append(sig)
     for srv in services:
-        if srv in text: valuable_hits += 1
+        if srv in text: 
+            valuable_hits += 1
+            reasons.append(srv)
+            
+    if "founder" in text or "ceo" in text or "vp" in text or "director" in text:
+        reasons.append("executive leadership")
         
     if valuable_hits > 0:
         s += min(0.65, valuable_hits * 0.15)
         
-    return max(0.0, min(1.0, s))
+    return max(0.0, min(1.0, s)), list(set(reasons))
 
 def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
     client_domain = _domain(brief.get("client_website") or "")
@@ -116,7 +124,7 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
             if d not in SOCIAL_HOSTS:
                 continue
             
-            sc = _score(hit, brief)
+            sc, reasons = _score(hit, brief)
 
             t_lower = hit["title"].lower()
             role = ""
@@ -136,6 +144,7 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
                 "email": None,
                 "score": int(round(sc * 100)),  # 0..100 for UI
                 "status": "New",
+                "match_reasons": reasons,
                 "source_url": hit["url"],
                 "url": hit["url"], # Fixes E11000 null duplicate key
                 "snippet": hit["snippet"],
