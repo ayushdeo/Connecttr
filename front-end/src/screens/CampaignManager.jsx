@@ -4,18 +4,31 @@ import StartNewCampaign from "./StartNewCampaign";
 import EnterKeywords from "./EnterKeywords";
 import LoadingScreen from "./LoadingScreen";
 import { API } from "../config";
-import { Search, Plus, ExternalLink, ArrowRight, Activity, Globe, FileText, Check } from "lucide-react";
+import { Search, Plus, ExternalLink, ArrowRight, Activity, Globe, FileText, Check, HelpCircle } from "lucide-react";
 
 // Helper components
 const Chip = ({ children }) => (
   <span className="text-[10px] uppercase font-bold text-white bg-white/10 border border-white/5 px-2 py-1 rounded-md">{children}</span>
 );
 
-const SectionCard = ({ title, items, text, icon }) => (
-  <div className="bg-slate rounded-2xl p-6 border border-white/5 hover:border-royal-amethyst/20 transition-colors">
+const InfoTooltip = ({ text }) => (
+  <div className="group relative inline-flex items-center ml-2 align-middle">
+    <HelpCircle size={14} className="text-white/40 hover:text-white/80 transition-colors cursor-help" />
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-black/95 border border-white/10 rounded-xl text-xs leading-relaxed text-white/90 normal-case font-normal opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 shadow-xl text-center">
+      {text}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/95" />
+    </div>
+  </div>
+);
+
+const SectionCard = ({ title, items, text, icon, tooltip, className = "" }) => (
+  <div className={`bg-slate rounded-2xl p-6 border border-white/5 hover:border-royal-amethyst/20 transition-colors ${className}`}>
     <div className="flex items-center gap-2 mb-4 text-soft-violet">
       {icon}
-      <h3 className="text-xs uppercase tracking-wider font-bold">{title}</h3>
+      <h3 className="text-xs uppercase tracking-wider font-bold flex flex-1 items-center">
+        {title}
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </h3>
     </div>
     {Array.isArray(items) && items.length > 0 ? (
       <ul className="space-y-2">
@@ -255,13 +268,50 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <SectionCard title="Services" items={brief.services} icon={<Activity size={16} />} />
-          <SectionCard title="ICP Summary" text={brief.icp_summary} icon={<FileText size={16} />} />
-          <SectionCard title="Lead Signals" items={brief.lead_signals} icon={<Check size={16} />} />
-          <SectionCard title="Search Queries" items={brief.search_queries} icon={<Search size={16} />} />
-          <SectionCard title="Target Domains" text="Optimized for B2B discovery" icon={<Globe size={16} />} />
-          <SectionCard title="Outreach Angles" items={brief.outreach_angles} icon={<ExternalLink size={16} />} />
+        {/* Core Identity */}
+        <div className="grid md:grid-cols-3 gap-6 mb-6">
+          <SectionCard 
+            title="Target Audience (ICP)" 
+            text={brief.icp_summary} 
+            icon={<FileText size={16} />} 
+            tooltip="Ideal Customer Profile. A summary of who experiences the problems your product solves."
+            className="md:col-span-2"
+          />
+          <SectionCard 
+            title="Identified Offerings" 
+            items={brief.services} 
+            icon={<Activity size={16} />} 
+            tooltip="The core products or services our AI determined you sell based on the website."
+          />
+        </div>
+
+        {/* Discovery & Outreach Strategy */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <SectionCard 
+            title="Buying Signals" 
+            items={brief.lead_signals} 
+            icon={<Check size={16} />} 
+            tooltip="Specific phrases and intent markers people use on social channels when they need your service."
+          />
+          <SectionCard 
+            title="AI Discovery Paths" 
+            items={brief.search_queries} 
+            icon={<Search size={16} />} 
+            tooltip="The exact search structures the scraping engine will execute to uncover leads."
+          />
+          <SectionCard 
+            title="Platform Filters" 
+            items={brief.exclude_domains}
+            text={brief.exclude_domains?.length ? undefined : "Standard exclusions applied"} 
+            icon={<Globe size={16} />} 
+            tooltip="Websites or platforms that the AI will explicitly avoid scraping to prevent noise."
+          />
+          <SectionCard 
+            title="Messaging Angles" 
+            items={brief.outreach_angles} 
+            icon={<ExternalLink size={16} />} 
+            tooltip="Suggestions for how the AI Email Writer will draft outbound campaigns."
+          />
         </div>
 
         <div className="mt-8 text-center">
@@ -344,13 +394,48 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
         </div>
 
         {/* Content grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <SectionCard title="Services" items={brief.services} icon={<Activity size={16} />} />
-          <SectionCard title="ICP Summary" text={brief.icp_summary} icon={<FileText size={16} />} />
-          <SectionCard title="Lead Signals" items={brief.lead_signals} icon={<Check size={16} />} />
-          <SectionCard title="Search Queries" items={brief.search_queries} icon={<Search size={16} />} />
-          <SectionCard title="Target Domains" items={brief.exclude_domains} text="Standard exclusions applied" icon={<Globe size={16} />} />
-          <SectionCard title="Outreach Angles" items={brief.outreach_angles} icon={<ExternalLink size={16} />} />
+        <div className="grid md:grid-cols-3 gap-6 mb-6">
+          <SectionCard 
+            title="Target Audience (ICP)" 
+            text={brief.icp_summary} 
+            icon={<FileText size={16} />} 
+            tooltip="Ideal Customer Profile. A summary of who experiences the problems your product solves."
+            className="md:col-span-2"
+          />
+          <SectionCard 
+            title="Identified Offerings" 
+            items={brief.services} 
+            icon={<Activity size={16} />} 
+            tooltip="The core products or services our AI determined you sell based on the website."
+          />
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <SectionCard 
+            title="Buying Signals" 
+            items={brief.lead_signals} 
+            icon={<Check size={16} />} 
+            tooltip="Specific phrases and intent markers people use on social channels when they need your service."
+          />
+          <SectionCard 
+            title="AI Discovery Paths" 
+            items={brief.search_queries} 
+            icon={<Search size={16} />} 
+            tooltip="The exact search structures the scraping engine will execute to uncover leads."
+          />
+          <SectionCard 
+            title="Platform Filters" 
+            items={brief.exclude_domains}
+            text={brief.exclude_domains?.length ? undefined : "Standard exclusions applied"} 
+            icon={<Globe size={16} />} 
+            tooltip="Websites or platforms that the AI will explicitly avoid scraping to prevent noise."
+          />
+          <SectionCard 
+            title="Messaging Angles" 
+            items={brief.outreach_angles} 
+            icon={<ExternalLink size={16} />} 
+            tooltip="Suggestions for how the AI Email Writer will draft outbound campaigns."
+          />
         </div>
       </div>
     );
