@@ -122,6 +122,8 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
   // NEW UX STATES
   const [importResult, setImportResult] = useState(null); // { count, preview, campaign }
   const [errorMsg, setErrorMsg] = useState("");
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("");
 
   const domainFromUrl = (u) => {
     try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; }
@@ -139,20 +141,55 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
       return (b.created_at || 0) - (a.created_at || 0);
     });
 
+  const handleStreamingDiscovery = async (r, c) => {
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.detail || e.message || `Discover failed (${r.status})`);
+    }
+
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let isDone = false;
+    let fallbackResult = null;
+
+    while (!isDone) {
+      const { value, done: readerDone } = await reader.read();
+      isDone = readerDone;
+      if (value) {
+        const chunkStr = decoder.decode(value, { stream: true });
+        const lines = chunkStr.split("\n").filter(Boolean);
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.type === "progress") {
+              setLoadingProgress(data.progress);
+              setLoadingMessage(data.step);
+            } else if (data.type === "final") {
+              fallbackResult = data;
+              setImportResult({ count: data.imported || 0, preview: data.preview || [], campaign: c });
+            } else if (data.type === "error") {
+              throw new Error(data.message);
+            }
+          } catch (e) {
+            if (e.message?.startsWith("Server Error")) throw e;
+            // ignore split JSON chunks
+          }
+        }
+      }
+    }
+  };
+
   async function generateForCampaign(c) {
     if (busyId) return;
     setBusyId(c.id);
     setShowLoading(true);
-    setLoadingDone(false);
+    setLoadingProgress(0);
+    setLoadingMessage("Connecting to cluster...");
     setErrorMsg("");
     try {
       const r = await fetch(`${API}/campaigns/${c.id}/discover`, { method: "POST", credentials: 'include' });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || `Discover failed (${r.status})`);
-      
-      console.log("Imported", data.imported, "leads for", c.name);
-      setImportResult({ count: data.imported || 0, preview: data.preview || [], campaign: c });
-      setLoadingDone(true);
+      await handleStreamingDiscovery(r, c);
+      setStage("success");
     } catch (e) {
       console.error(e);
       setErrorMsg(e.message || "Lead discovery failed to run.");
@@ -166,15 +203,13 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
     if (!current?.id || busy) return;
     setBusy(true);
     setShowLoading(true);
-    setLoadingDone(false);
+    setLoadingProgress(0);
+    setLoadingMessage("Connecting to cluster...");
     setErrorMsg("");
     try {
       const r = await fetch(`${API}/campaigns/${current.id}/discover`, { method: "POST", credentials: 'include' });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || `Discover failed (${r.status})`);
-      
-      setImportResult({ count: data.imported || 0, preview: data.preview || [], campaign: current });
-      setLoadingDone(true);
+      await handleStreamingDiscovery(r, current);
+      setStage("success");
     } catch (e) {
       console.error(e);
       setErrorMsg(e.message || "Lead discovery failed.");
@@ -376,14 +411,10 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
           </div>
 
           {showLoading && (
-            <div className="fixed inset-0 z-[10000]">
+            <div className="absolute inset-0 z-[10000] pointer-events-auto">
               <LoadingScreen
-                isDone={loadingDone}
-                onComplete={() => {
-                  setShowLoading(false);
-                  setLoadingDone(false);
-                  setStage("success");
-                }}
+                progress={loadingProgress}
+                message={loadingMessage}
               />
             </div>
           )}
@@ -554,12 +585,8 @@ const CampaignManager = ({ onNavigate = () => { } }) => {
       {showLoading && (
         <div className="fixed inset-0 z-50">
           <LoadingScreen
-            isDone={loadingDone}
-            onComplete={() => {
-              setShowLoading(false);
-              setLoadingDone(false);
-              setStage("success");
-            }}
+             progress={loadingProgress}
+             message={loadingMessage}
           />
         </div>
       )}

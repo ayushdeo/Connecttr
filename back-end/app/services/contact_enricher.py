@@ -65,8 +65,17 @@ def _find_contact_links(html, base):
 
 def enrich_leads_with_email(leads, max_to_enrich=20):
     count = 0
-    for lead in leads:
-        if count >= max_to_enrich: break
+    total = min(len(leads), max_to_enrich)
+    
+    if total == 0:
+        yield {"type": "result", "leads": leads}
+        return
+        
+    for i, lead in enumerate(leads):
+        pct = int(100 * (i / max(1, len(leads))))
+        yield {"type": "progress", "progress": pct, "step": f"Validating signals & enriching logic loops {i+1}/{total}..."}
+        
+        if count >= max_to_enrich: continue
         if lead.get("email"): continue
 
         src = lead.get("source_url") or ""
@@ -86,4 +95,5 @@ def enrich_leads_with_email(leads, max_to_enrich=20):
             count += 1
         else:
             lead["status"] = "Needs Email"
-    return leads
+            
+    yield {"type": "result", "leads": leads}
