@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request 
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from app.services.web_extractor import extract_main_text
@@ -38,48 +39,69 @@ def campaign_discover(campaign_id: str, dry_run: bool = False, current_user: Use
     if camp.get("website"):
         brief["client_website"] = camp["website"]
 
-    t0 = time.time()
-    try:
-        leads = discover_from_brief(campaign_id, brief, per_query=6)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"lead discovery crashed: {e}")
+    async def orchestrator():
+        try:
+            import json
+            yield json.dumps({"type": "progress", "progress": 5, "step": "Initializing AI discovery matrix..."}) + "\n"
+            
+            # 1) Collection Phase
+            leads = []
+            for chunk in discover_from_brief(campaign_id, brief, per_query=6):
+                if isinstance(chunk, dict):
+                    if chunk.get("type") == "progress":
+                        # map 0-100 to 5-75
+                        inner = chunk.get("progress", 0)
+                        mapped = 5 + int((inner/100)*70)
+                        yield json.dumps({"type": "progress", "progress": mapped, "step": chunk.get("step","")}) + "\n"
+                    elif chunk.get("type") == "result":
+                        leads = chunk.get("leads", [])
+            
+            # 2) Enrichment Phase
+            yield json.dumps({"type": "progress", "progress": 75, "step": f"Enriching {len(leads)} leads with verified emails..."}) + "\n"
+            
+            try:
+                for chunk in enrich_leads_with_email(leads, max_to_enrich=20):
+                    if isinstance(chunk, dict):
+                        if chunk.get("type") == "progress":
+                            # map inner progress 0-100 to 75-95
+                            inner = chunk.get("progress", 0)
+                            mapped = 75 + int((inner/100)*20)
+                            yield json.dumps({"type": "progress", "progress": mapped, "step": chunk.get("step","")}) + "\n"
+                        elif chunk.get("type") == "result":
+                            leads = chunk.get("leads", [])
+            except Exception as e:
+                traceback.print_exc()
 
-    # optional email enrichment
-    try:
-        leads = enrich_leads_with_email(leads, max_to_enrich=20)
-    except Exception as e:
-        traceback.print_exc()
+            # 3) DB Save
+            yield json.dumps({"type": "progress", "progress": 96, "step": "Saving finalized profiles to Connectr Hub..."}) + "\n"
+            if not dry_run:
+                try:
+                    upsert_leads_to_hub(leads, org_id=current_user.org_id)
+                    get_audit_collection().insert_one({
+                        "org_id": current_user.org_id,
+                        "user_id": current_user.id,
+                        "action": "discover_leads",
+                        "resource": f"campaign/{campaign_id}",
+                        "metadata": {"count": len(leads)},
+                        "timestamp": datetime.utcnow()
+                    })
+                except Exception as e:
+                    traceback.print_exc()
+            
+            yield json.dumps({"type": "progress", "progress": 100, "step": "Complete!"}) + "\n"
+            yield json.dumps({
+                "type": "final",
+                "mode": "preview" if dry_run else "import",
+                "imported": len(leads),
+                "preview": leads[:5]
+            }) + "\n"
+            
+        except Exception as e:
+            traceback.print_exc()
+            import json
+            yield json.dumps({"type": "error", "message": f"Server Error: {str(e)}"}) + "\n"
 
-    took = round(time.time() - t0, 2)
-
-    if dry_run:
-        return {"mode":"preview","count":len(leads),"took_seconds":took,"preview":leads[:5]}
-
-    try:
-        # Pass org_id for insertion
-        upsert_leads_to_hub(leads, org_id=current_user.org_id)
-        
-        # Audit
-        get_audit_collection().insert_one({
-            "org_id": current_user.org_id,
-            "user_id": current_user.id,
-            "action": "discover_leads",
-            "resource": f"campaign/{campaign_id}",
-            "metadata": {"count": len(leads)},
-            "timestamp": datetime.utcnow()
-        })
-        
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"import failed: {e}")
-
-    return {"mode":"import","imported":len(leads),"took_seconds":took,"preview":leads[:5]}
-
-
-    # r = requests.post(f"{EMAILHUB_URL}/emailhub/leads/import", json=leads, timeout=60)
-    # r.raise_for_status()
-    # return {"mode":"import","imported":len(leads),"took_seconds":took,"preview":leads[:5]}
+    return StreamingResponse(orchestrator(), media_type="text/event-stream")
 
 
 class AnalyzeIn(BaseModel):

@@ -101,7 +101,12 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
     log.info(f"[discover] executing {len(queries)} pure AI search paths without geographical limits")
 
     leads, seen = [], set()
-    for q in queries:
+    total_q = len(queries)
+    
+    for i, q in enumerate(queries):
+        pct = int(100 * (i / max(1, total_q)))
+        yield {"type": "progress", "progress": pct, "step": f"Scraping logic loop {i+1}/{total_q}..."}
+        
         for hit in _google_results(q, per_query):
             if hit["url"] in seen: 
                 continue
@@ -132,8 +137,9 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 6):
                 "score": int(round(sc * 100)),  # 0..100 for UI
                 "status": "New",
                 "source_url": hit["url"],
+                "url": hit["url"], # Fixes E11000 null duplicate key
                 "snippet": hit["snippet"],
             })
             seen.add(hit["url"])
             
-    return leads
+    yield {"type": "result", "leads": leads}
