@@ -20,3 +20,4 @@ Authlib
 itsdangerous
 slowapi
 numpy
+markdownify==0.13.1

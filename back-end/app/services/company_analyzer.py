@@ -59,18 +59,19 @@ def analyze_company_brief(basis_text: str, website: Optional[str] = None) -> Dic
 
     system = "You are a B2B lead-gen strategist. Be concise and deterministic."
     user = f"""
-We are setting up an outbound campaign.
+We are setting up an outbound B2B lead generation campaign.
 
 Client website: {website or "(none)"}
 
-BASIS TEXT (from website or user prompt):
-\"\"\"{(basis_text or '')[:8000]}\"\"\"  # truncated
+BASIS TEXT (from website or user prompt, formatted as Markdown):
+\"\"\"{(basis_text or '')[:20000]}\"\"\"  # truncated at 20k chars
 
 Tasks:
-1) Infer the client's services and ICP (ideal customer profile).
-2) Propose how to find buyers online (signals, platforms, and query patterns).
-3) Provide rules to EXCLUDE irrelevant leads (job postings, supplier portfolios, generic tips).
-4) Output ONLY JSON with this exact shape:
+1) Meticulously identify the client's core Unique Selling Proposition (USP) and exact products/services from the text.
+2) Infer their hyper-specific Ideal Customer Profile (ICP). What exact problems do their buyers have?
+3) Propose how to find these buyers online (signals, platforms, and exact search query patterns). Ensure `lead_signals` are highly distinct and not generic.
+4) Provide strict rules to EXCLUDE irrelevant leads (e.g. job postings, supplier portfolios, generic industry tips, completely unrelated sectors).
+5) Output ONLY JSON with this exact shape:
 
 {{
   "services": [ "string", ... ],
@@ -83,7 +84,7 @@ Tasks:
   "quality": 0.0
 }}
 
-Return JSON only. No extra text.
+Return JSON only. No extra conversational text or markdown wrappers.
 """
 
     payload = {
