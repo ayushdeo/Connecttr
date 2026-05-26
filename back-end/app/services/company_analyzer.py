@@ -1,31 +1,21 @@
 # app/services/company_analyzer.py
-import os, re, json, requests
-from typing import Optional, Dict, Any
-from tenacity import retry, stop_after_attempt, wait_exponential
-from dotenv import load_dotenv, find_dotenv
+import re
+from typing import Optional, Dict, Any, Tuple
+from app.services.llm_client import call_llm, extract_json
 
-# Load env from .env
-load_dotenv()
 
-class AnalyzerHTTPError(RuntimeError): ...
 class AnalyzerConfigError(RuntimeError): ...
 
-def _extract_json_block(text: str) -> Dict[str, Any]:
-    """
-    Pull the first JSON object from an LLM response (handles prose wrappers).
-    """
-    if not text:
-        return {}
-    # Try fenced code blocks first
-    m = re.search(r"```(?:json)?\s*({.*?})\s*```", text, flags=re.S|re.I)
-    if not m:
-        m = re.search(r"({.*})", text, flags=re.S)
-    if not m:
-        return {}
-    try:
-        return json.loads(m.group(1))
-    except Exception:
-        return {}
+
+def _focus_content(text: str, max_chars: int = 8000) -> str:
+    """Strip navigation noise and truncate to information-dense content."""
+    lines = text.split("\n")
+    # Drop lines that are pure markdown link lists (nav menus, footers)
+    lines = [l for l in lines if not re.match(r"^\[.+\]\(.+\)\s*$", l.strip())]
+    focused = "\n".join(lines)
+    focused = re.sub(r"\n{3,}", "\n\n", focused).strip()
+    return focused[:max_chars]
+
 
 def _normalize_brief(d: Dict[str, Any]) -> Dict[str, Any]:
     d = dict(d or {})
@@ -42,85 +32,69 @@ def _normalize_brief(d: Dict[str, Any]) -> Dict[str, Any]:
         d["quality"] = 0.0
     return d
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
+
+def _validate_brief(d: Dict[str, Any]) -> Tuple[bool, str]:
+    if len(d.get("search_queries", [])) < 2:
+        return False, "Not enough search queries generated — website had too little content to analyze."
+    if len(d.get("icp_summary", "")) < 30:
+        return False, "Could not identify your target customer from the website."
+    if d.get("quality", 0.0) < 0.40:
+        return False, "Website content was too thin or blocked to extract a reliable profile."
+    return True, ""
+
+
 def analyze_company_brief(basis_text: str, website: Optional[str] = None) -> Dict[str, Any]:
     """
-    Turn website text (or a user prompt) into a structured brief we can use to
-    drive scraping + intent rules. Returns a dict with keys:
-      services, icp_summary, lead_signals, search_queries, exclude_terms,
-      exclude_domains, outreach_angles, quality (0..1)
+    Turn website text (or a free-form user prompt) into a structured campaign brief.
+    Uses Gemini 2.0 Flash via the shared llm_client.
     """
-    base_url = os.getenv("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
-    model    = os.getenv("PERPLEXITY_MODEL", "sonar")
-    api_key  = os.getenv("PERPLEXITY_API_KEY")
-    timeout  = int(os.getenv("REQUEST_TIMEOUT_SECONDS", "30"))
-    if not api_key:
-        raise AnalyzerConfigError("PERPLEXITY_API_KEY missing")
+    focused = _focus_content(basis_text or "")
 
-    system = "You are a B2B lead-gen strategist. Be concise and deterministic."
-    user = f"""
-You are an intelligent analysis engine designed to extract a high-quality outbound campaign profile from any given context.
-Your goal is to make the process feel "magical" by prioritizing automation, accuracy, and rigorous evidence evaluation.
+    system = (
+        "You are a B2B lead-gen strategist. "
+        "Output only valid JSON — no markdown, no commentary, no prose. "
+        "All output must be in English regardless of input language."
+    )
+
+    user = f"""Extract a high-quality outbound campaign profile from the content below.
 
 Client website: {website or "(none)"}
 
-BASIS TEXT (from website or user prompt, formatted as Markdown):
-\"\"\"{(basis_text or '')[:20000]}\"\"\"
+CONTENT:
+\"\"\"{focused}\"\"\"
 
-## EXTRACTION PIPELINE & CLASSIFICATION (Internal Process)
-Before generating output, internally perform these steps:
-1. Classify the page roles (Homepage, About, Services, Pricing, Blog) to weight signal importance.
-2. Extract Metadata (Titles, Heroes, H1-H3).
-3. Evaluate Core Elements (Positioning, offers, target audiences, and explicit pain points).
-4. Extract Structured clues (CTAs, footer links, JSON-LD context if visible).
+Before generating output, determine:
+1. The exact product or service being offered.
+2. Who the ideal buyer is and what specific pain they experience.
+3. How buyers signal intent online (social posts, forum questions, job listings, portfolio sites).
+4. 5 specific Google search queries that would surface those buyers today.
 
-## CONFIDENCE SCORING RULES
-Evaluate your confidence from 0.0 to 1.0 for the complete profile:
-* 0.9+ → explicitly stated multiple times across the site
-* 0.7–0.89 → clearly implied across credible sources
-* 0.5–0.69 → weak inference
-* <0.5 → unreliable / guess
-Determine the absolute lowest confidence among your core evaluations (Target Audience & Core Offer). Output this exact float as the `quality` score.
+CONFIDENCE RULES (quality field, 0.0 to 1.0):
+* 0.9+ = explicitly stated multiple times across the content
+* 0.7-0.89 = clearly implied
+* 0.5-0.69 = weak inference
+* <0.5 = insufficient or missing content
 
-## FAILURE HANDLING (CRITICAL)
-You MUST NOT fail. If the content is heavily missing or scraping resulted in a JS-shell, extract whatever partial signals exist, heavily penalize the `quality` score (<0.55), and leave unknown arrays empty. Do NOT hallucinate claims or generic filler.
+If content is sparse or blocked, leave arrays empty and score quality below 0.5. Never hallucinate.
 
-## OUTPUT SCHEMA (MANDATORY)
-Output ONLY a JSON object matching this exact shape. Combine your deep analysis into these exact keys:
-
+Output ONLY this JSON object — nothing else:
 {{
-  "services": [ "Exact products or services extracted, backed by site evidence." ],
-  "icp_summary": "Hyper-specific Ideal Customer Profile detailing what problems they have that this company solves.",
-  "lead_signals": [ "Highly distinct intent markers, platforms, or tools the ICP uses." ],
-  "search_queries": [ "Exact search query patterns representing buyer intent." ],
-  "exclude_terms": [ "Strict rules to EXCLUDE irrelevant leads (e.g. job postings, supplier portfolios, generic tips)." ],
-  "exclude_domains": [ "Specific competitor or partner platforms to avoid." ],
-  "outreach_angles": [ "Evidence-backed conversational angles for direct outreach messages." ],
+  "services": ["exact products/services found in the content"],
+  "icp_summary": "specific Ideal Customer Profile: who they are, what pain they have, why they buy",
+  "lead_signals": ["distinct intent markers, platforms, tools, or behaviours the ICP shows"],
+  "search_queries": ["5 specific Google search query strings targeting buyer intent signals"],
+  "exclude_terms": ["terms that would surface irrelevant results to exclude"],
+  "exclude_domains": ["competitor or irrelevant platforms to skip when scraping"],
+  "outreach_angles": ["evidence-backed hooks for personalised outreach messages"],
   "quality": 0.0
-}}
+}}"""
 
-Return JSON only. No extra conversational text or markdown wrappers.
-"""
+    content = call_llm(system, user, max_tokens=1500, temperature=0.0)
+    data = extract_json(content)
+    brief = _normalize_brief(data)
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user",    "content": user},
-        ],
-        "temperature": 0.0,
-        "max_tokens": 600,
-    }
+    valid, reason = _validate_brief(brief)
+    brief["_validation_passed"] = valid
+    brief["_validation_reason"] = reason
 
-    r = requests.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=timeout,
-    )
-    if r.status_code != 200:
-        raise AnalyzerHTTPError(f"HTTP {r.status_code} | model={model} | body={r.text[:400]}")
-
-    content = r.json()["choices"][0]["message"]["content"].strip()
-    data = _extract_json_block(content)
-    return _normalize_brief(data)
+    return brief

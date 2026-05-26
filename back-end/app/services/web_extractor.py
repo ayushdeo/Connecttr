@@ -117,7 +117,7 @@ def extract_main_text(url: str, timeout: int = 20) -> tuple[str, dict]:
             if is_js_shell or len(text) < 600:
                 # Trigger scrape.do JS execution
                 meta["fallback_reason"] = "js_shell" if is_js_shell else "low_text_yield"
-                TOKEN = os.getenv("SCRAPE_DO_TOKEN")
+                TOKEN = os.getenv("SCRAPEDO_TOKEN")
                 if TOKEN:
                     meta["method"] = "scrapedo"
                     target = urllib.parse.quote(url, safe="")
