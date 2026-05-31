@@ -6,7 +6,7 @@ import {
   ArrowRight, CheckCircle, TrendingUp, Target, Mail,
   BarChart2, Zap, Search, Users, Brain, ChevronRight,
   Sun, Moon, Menu, X, Sparkles, Clock, DollarSign,
-  AlertTriangle, ShieldCheck, Globe, RefreshCw,
+  AlertTriangle, ShieldCheck, Globe, RefreshCw, Star,
 } from "lucide-react";
 import { BRAND } from "../brand";
 
