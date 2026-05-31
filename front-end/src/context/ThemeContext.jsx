@@ -4,7 +4,7 @@ const ThemeContext = createContext({ theme: "dark", toggle: () => {} });
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("connecttr-theme") || "dark"
+    () => localStorage.getItem("connecttr-theme") || "light"
   );
 
   useEffect(() => {

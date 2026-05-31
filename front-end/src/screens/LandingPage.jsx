@@ -14,71 +14,71 @@ import { PricingSection } from "../components/ui/pricing";
 // ─── Theme palette ────────────────────────────────────────────────────────────
 // All inline styles derive from `p` so the toggle works without a full CSS refactor.
 
+// Apple-inspired palette — clean, high-contrast, easy on the eyes
 function getPalette(isDark) {
+  const accent = isDark ? "#9b72ff" : "#7c3aed";   // brighter purple in dark
   return isDark ? {
-    bg:              "#0a0612",
-    navBg:           "rgba(10,6,18,0.80)",
-    navBgScrolled:   "rgba(10,6,18,0.94)",
-    navBorder:       "rgba(255,255,255,0.07)",
-    fg:              "#f0ebf8",
-    muted:           (a) => `rgba(200,185,220,${a})`,
-    card:            "rgba(255,255,255,0.03)",
-    cardHover:       "rgba(124,58,237,0.07)",
-    border:          "rgba(255,255,255,0.07)",
-    borderHover:     "rgba(124,58,237,0.35)",
-    sectionBg:       "rgba(255,255,255,0.025)",
-    sectionBorder:   "rgba(255,255,255,0.06)",
-    statsBg:         "rgba(124,58,237,0.08)",
-    statsBorder:     "rgba(124,58,237,0.18)",
-    heroBadgeBg:     "rgba(124,58,237,0.15)",
-    heroBadgeBorder: "rgba(124,58,237,0.35)",
+    bg:              "#000000",
+    navBg:           "rgba(0,0,0,0.75)",
+    navBgScrolled:   "rgba(18,18,20,0.94)",
+    navBorder:       "rgba(255,255,255,0.09)",
+    fg:              "#f5f5f7",
+    muted:           (a) => `rgba(235,235,245,${a})`,
+    card:            "#1c1c1e",
+    cardShadow:      "0 2px 16px rgba(0,0,0,0.4)",
+    cardHover:       "#242426",
+    border:          "rgba(255,255,255,0.09)",
+    borderHover:     "rgba(155,114,255,0.50)",
+    sectionBg:       "#111113",
+    sectionBorder:   "rgba(255,255,255,0.07)",
+    statsBg:         "rgba(155,114,255,0.10)",
+    statsBorder:     "rgba(155,114,255,0.20)",
+    heroBadgeBg:     "rgba(155,114,255,0.15)",
+    heroBadgeBorder: "rgba(155,114,255,0.40)",
     heroBadgeFg:     "#c4b5fd",
-    caseHeaderBorder:"rgba(255,255,255,0.07)",
-    caseOldBg:       "rgba(239,68,68,0.04)",
-    caseNewBg:       "rgba(124,58,237,0.05)",
-    pricingCardBg:   "rgba(255,255,255,0.03)",
-    pricingCardBorder:"rgba(255,255,255,0.09)",
-    divider:         "rgba(255,255,255,0.06)",
-    footerBg:        "transparent",
-    trusted:         "rgba(200,185,220,0.28)",
-    inputNavLink:    "rgba(200,185,220,0.75)",
-    btnOutlineFg:    "rgba(200,185,220,0.85)",
-    btnOutlineBg:    "rgba(255,255,255,0.04)",
-    btnOutlineBorder:"rgba(255,255,255,0.12)",
-    btnOutlineHoverBg:    "rgba(124,58,237,0.08)",
-    btnOutlineHoverBorder:"rgba(124,58,237,0.50)",
+    caseHeaderBorder:"rgba(255,255,255,0.08)",
+    caseOldBg:       "rgba(255,59,48,0.06)",
+    caseNewBg:       "rgba(155,114,255,0.06)",
+    divider:         "rgba(255,255,255,0.08)",
+    trusted:         "rgba(235,235,245,0.22)",
+    inputNavLink:    "rgba(235,235,245,0.65)",
+    btnOutlineFg:    "rgba(235,235,245,0.85)",
+    btnOutlineBg:    "rgba(255,255,255,0.05)",
+    btnOutlineBorder:"rgba(255,255,255,0.14)",
+    btnOutlineHoverBg:    "rgba(155,114,255,0.10)",
+    btnOutlineHoverBorder:"rgba(155,114,255,0.50)",
+    accent,
   } : {
-    bg:              "#f9f6ff",
-    navBg:           "rgba(249,246,255,0.80)",
-    navBgScrolled:   "rgba(249,246,255,0.96)",
-    navBorder:       "rgba(124,58,237,0.12)",
-    fg:              "#1a0d2e",
-    muted:           (a) => `rgba(70,40,110,${a})`,
+    bg:              "#ffffff",
+    navBg:           "rgba(255,255,255,0.72)",
+    navBgScrolled:   "rgba(255,255,255,0.92)",
+    navBorder:       "rgba(0,0,0,0.08)",
+    fg:              "#1d1d1f",
+    muted:           (a) => `rgba(60,60,67,${a})`,
     card:            "#ffffff",
-    cardHover:       "rgba(124,58,237,0.04)",
-    border:          "rgba(124,58,237,0.13)",
-    borderHover:     "rgba(124,58,237,0.35)",
-    sectionBg:       "rgba(124,58,237,0.03)",
-    sectionBorder:   "rgba(124,58,237,0.09)",
-    statsBg:         "rgba(124,58,237,0.07)",
-    statsBorder:     "rgba(124,58,237,0.18)",
-    heroBadgeBg:     "rgba(124,58,237,0.10)",
-    heroBadgeBorder: "rgba(124,58,237,0.30)",
+    cardShadow:      "0 2px 12px rgba(0,0,0,0.06), 0 0 1px rgba(0,0,0,0.04)",
+    cardHover:       "#faf9ff",
+    border:          "#e5e5ea",
+    borderHover:     "rgba(124,58,237,0.40)",
+    sectionBg:       "#f5f5f7",
+    sectionBorder:   "#e5e5ea",
+    statsBg:         "rgba(124,58,237,0.06)",
+    statsBorder:     "rgba(124,58,237,0.14)",
+    heroBadgeBg:     "rgba(124,58,237,0.08)",
+    heroBadgeBorder: "rgba(124,58,237,0.25)",
     heroBadgeFg:     "#6d28d9",
-    caseHeaderBorder:"rgba(124,58,237,0.10)",
-    caseOldBg:       "rgba(239,68,68,0.03)",
+    caseHeaderBorder:"#e5e5ea",
+    caseOldBg:       "rgba(255,59,48,0.04)",
     caseNewBg:       "rgba(124,58,237,0.04)",
-    pricingCardBg:   "#ffffff",
-    pricingCardBorder:"rgba(124,58,237,0.13)",
-    divider:         "rgba(124,58,237,0.10)",
-    footerBg:        "transparent",
-    trusted:         "rgba(70,40,110,0.28)",
-    inputNavLink:    "rgba(70,40,110,0.70)",
-    btnOutlineFg:    "rgba(70,40,110,0.85)",
-    btnOutlineBg:    "rgba(124,58,237,0.04)",
-    btnOutlineBorder:"rgba(124,58,237,0.18)",
-    btnOutlineHoverBg:    "rgba(124,58,237,0.08)",
+    divider:         "#e5e5ea",
+    trusted:         "rgba(60,60,67,0.25)",
+    inputNavLink:    "#6e6e73",
+    btnOutlineFg:    "#1d1d1f",
+    btnOutlineBg:    "transparent",
+    btnOutlineBorder:"#c7c7cc",
+    btnOutlineHoverBg:    "rgba(124,58,237,0.05)",
     btnOutlineHoverBorder:"rgba(124,58,237,0.40)",
+    accent,
   };
 }
 
@@ -211,10 +211,11 @@ const LandingPage = () => {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 20px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
 
           <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,58,237,0.20)", border: "1px solid rgba(124,58,237,0.40)" }}>
-              <img src="/clogo.png" alt={BRAND} style={{ width: 18, height: 18, objectFit: "contain" }} onError={e => { e.target.style.display = "none"; }} />
+            {/* Solid accent background so logo is always visible in both modes */}
+            <div style={{ width: 32, height: 32, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: p.accent, flexShrink: 0 }}>
+              <img src="/clogo.png" alt={BRAND} style={{ width: 20, height: 20, objectFit: "contain", filter: "brightness(10)" }} onError={e => { e.target.style.display = "none"; }} />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 15, color: isDark ? "#fff" : p.fg, letterSpacing: "-0.01em" }}>{BRAND}</span>
+            <span style={{ fontWeight: 700, fontSize: 16, color: isDark ? "#f5f5f7" : "#1d1d1f", letterSpacing: "-0.02em" }}>{BRAND}</span>
           </a>
 
           {/* Desktop nav */}
@@ -295,52 +296,55 @@ const LandingPage = () => {
         <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 800, height: 500, background: "radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 860, margin: "0 auto" }}>
 
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", borderRadius: 999, fontSize: 12, fontWeight: 600, letterSpacing: "0.05em", marginBottom: 28, background: p.heroBadgeBg, border: `1px solid ${p.heroBadgeBorder}`, color: p.heroBadgeFg }}>
-            <Zap size={12} style={{ fill: "currentColor" }} />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 18px", borderRadius: 999, fontSize: 13, fontWeight: 600, letterSpacing: "0.04em", marginBottom: 36, background: p.heroBadgeBg, border: `1px solid ${p.heroBadgeBorder}`, color: p.heroBadgeFg }}>
+            <Zap size={13} style={{ fill: "currentColor" }} />
             AI-Powered Outbound Platform
           </div>
 
+          {/* Two-line headline: static + animated — prevents typewriter clipping */}
+          <div style={{ marginBottom: 8 }}>
+            <p style={{ fontSize: "clamp(44px,7vw,76px)", fontWeight: 800, lineHeight: 1.06, letterSpacing: "-0.025em", color: isDark ? "#f5f5f7" : "#1d1d1f", margin: 0 }}>
+              From Intent Signal
+            </p>
+          </div>
           <TypewriterEffectSmooth
             words={[
-              { text: "From",   className: isDark ? "text-white" : "text-[#1a0d2e]" },
-              { text: "Intent", className: isDark ? "text-white" : "text-[#1a0d2e]" },
-              { text: "Signal", className: isDark ? "text-white" : "text-[#1a0d2e]" },
-              { text: "to",     className: isDark ? "text-white" : "text-[#1a0d2e]" },
-              { text: "Inbox.", className: "text-violet-400" },
+              { text: "to",     className: isDark ? "!text-[#f5f5f7]" : "!text-[#1d1d1f]" },
+              { text: "Inbox.", className: "!text-violet-500" },
             ]}
-            className="mb-8"
-            cursorClassName={isDark ? "bg-violet-400" : "bg-violet-600"}
+            className="mb-10"
+            cursorClassName={isDark ? "!bg-violet-400" : "!bg-violet-600"}
           />
 
-          <p style={{ fontSize: 18, lineHeight: 1.65, maxWidth: 620, margin: "0 auto 40px", color: p.muted(0.72) }}>
+          <p style={{ fontSize: 20, lineHeight: 1.7, maxWidth: 580, margin: "0 auto 44px", color: p.muted(0.70) }}>
             Connecttr takes your company brief, uncovers high-intent B2B prospects across the web, enriches their data, and drafts hyper-personalised outreach. Stop hunting for emails. Start closing.
           </p>
 
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 20 }}>
             <button onClick={handleCTA}
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 28px", borderRadius: 12, fontSize: 15, fontWeight: 600, color: "#fff", background: "#7c3aed", border: "none", cursor: "pointer", boxShadow: "0 0 28px rgba(124,58,237,0.45)", transition: "background 0.15s, box-shadow 0.15s" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#6d28d9"; e.currentTarget.style.boxShadow = "0 0 38px rgba(124,58,237,0.55)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#7c3aed"; e.currentTarget.style.boxShadow = "0 0 28px rgba(124,58,237,0.45)"; }}>
-              Get Started Free <ArrowRight size={17} />
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "15px 32px", borderRadius: 14, fontSize: 16, fontWeight: 600, color: "#fff", background: p.accent, border: "none", cursor: "pointer", boxShadow: isDark ? "0 0 28px rgba(155,114,255,0.40)" : "0 4px 20px rgba(124,58,237,0.35)", transition: "all 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}>
+              Get Started Free <ArrowRight size={18} />
             </button>
             <button onClick={() => scrollTo("how-it-works")}
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 28px", borderRadius: 12, fontSize: 15, fontWeight: 600, color: p.btnOutlineFg, background: p.btnOutlineBg, border: `1px solid ${p.btnOutlineBorder}`, cursor: "pointer", transition: "border-color 0.15s, background 0.15s" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "15px 32px", borderRadius: 14, fontSize: 16, fontWeight: 600, color: p.btnOutlineFg, background: p.btnOutlineBg, border: `1px solid ${p.btnOutlineBorder}`, cursor: "pointer", transition: "border-color 0.15s, background 0.15s" }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = p.btnOutlineHoverBorder; e.currentTarget.style.background = p.btnOutlineHoverBg; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = p.btnOutlineBorder; e.currentTarget.style.background = p.btnOutlineBg; }}>
               See How It Works
             </button>
           </div>
 
-          <p style={{ fontSize: 12, color: p.muted(0.38), marginBottom: 56 }}>
+          <p style={{ fontSize: 13, color: p.muted(0.42), marginBottom: 64 }}>
             ✓ No credit card required &nbsp;·&nbsp; ✓ 5-minute setup &nbsp;·&nbsp; ✓ Cancel anytime
           </p>
 
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: p.muted(0.35), marginBottom: 20 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: p.muted(0.35), marginBottom: 24 }}>
             Trusted by high-growth sales teams
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "12px 36px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "16px 48px" }}>
             {TRUST_NAMES.map(n => (
-              <span key={n} style={{ fontSize: 13, fontWeight: 600, color: p.trusted }}>{n}</span>
+              <span key={n} style={{ fontSize: 14, fontWeight: 600, color: p.trusted }}>{n}</span>
             ))}
           </div>
         </div>
@@ -349,26 +353,26 @@ const LandingPage = () => {
       {/* ── Problem ────────────────────────────────────────────────────────── */}
       <section style={{ padding: "88px 20px", background: p.sectionBg, borderTop: `1px solid ${p.sectionBorder}`, borderBottom: `1px solid ${p.sectionBorder}` }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16 }}>The Problem</p>
-            <h2 style={{ fontSize: "clamp(26px,4vw,38px)", fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 20, lineHeight: 1.2 }}>
+          <div style={{ textAlign: "center", marginBottom: 64 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: p.accent, marginBottom: 18 }}>The Problem</p>
+            <h2 style={{ fontSize: "clamp(30px,4vw,44px)", fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 20, lineHeight: 1.15 }}>
               Sales teams spend 70% of their time<br />researching, not selling.
             </h2>
-            <p style={{ fontSize: 15, color: p.muted(0.60), maxWidth: 480, margin: "0 auto" }}>
+            <p style={{ fontSize: 17, color: p.muted(0.65), maxWidth: 500, margin: "0 auto" }}>
               The manual B2B sales stack is broken. Here's where the hours go.
             </p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 20 }}>
             {PROBLEMS.map((item, i) => (
               <div key={i}
-                style={{ borderRadius: 16, padding: "28px 28px 28px", background: p.card, border: `1px solid ${p.border}`, transition: "border-color 0.2s, background 0.2s" }}
+                style={{ borderRadius: 18, padding: "32px", background: p.card, border: `1px solid ${p.border}`, boxShadow: p.cardShadow, transition: "border-color 0.2s, background 0.2s" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = p.borderHover; e.currentTarget.style.background = p.cardHover; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = p.border; e.currentTarget.style.background = p.card; }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,58,237,0.18)", color: "#a78bfa", marginBottom: 20 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: isDark ? "rgba(155,114,255,0.18)" : "rgba(124,58,237,0.10)", color: p.accent, marginBottom: 22 }}>
                   {item.icon}
                 </div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 10 }}>{item.title}</h3>
-                <p style={{ fontSize: 14, lineHeight: 1.6, color: p.muted(0.58) }}>{item.body}</p>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 10 }}>{item.title}</h3>
+                <p style={{ fontSize: 15, lineHeight: 1.65, color: p.muted(0.65) }}>{item.body}</p>
               </div>
             ))}
           </div>
@@ -379,16 +383,16 @@ const LandingPage = () => {
       <section id="use-cases" style={{ padding: "88px 20px" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16 }}>Real-World Scenarios</p>
-            <h2 style={{ fontSize: "clamp(26px,4vw,38px)", fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 20, lineHeight: 1.2 }}>How manual outbound bleeds revenue.</h2>
-            <p style={{ fontSize: 15, color: p.muted(0.60), maxWidth: 480, margin: "0 auto" }}>A tale of two firms — and what changes when AI does the heavy lifting.</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: p.accent, marginBottom: 18 }}>Real-World Scenarios</p>
+            <h2 style={{ fontSize: "clamp(30px,4vw,44px)", fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 20, lineHeight: 1.15 }}>How manual outbound bleeds revenue.</h2>
+            <p style={{ fontSize: 17, color: p.muted(0.65), maxWidth: 520, margin: "0 auto" }}>A tale of two firms — and what changes when AI does the heavy lifting.</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px,1fr))", gap: 24 }}>
             {CASES.map((c, i) => (
               <div key={i} style={{ borderRadius: 20, overflow: "hidden", border: `1px solid ${p.border}`, background: p.card }}>
                 <div style={{ padding: "24px 28px", borderBottom: `1px solid ${p.caseHeaderBorder}` }}>
                   <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 999, background: "rgba(124,58,237,0.18)", color: "#c4b5fd", border: "1px solid rgba(124,58,237,0.3)" }}>{c.label}</span>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: isDark ? "#fff" : p.fg, margin: "14px 0 8px", lineHeight: 1.3 }}>{c.title}</h3>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", margin: "14px 0 8px", lineHeight: 1.3 }}>{c.title}</h3>
                   <p style={{ fontSize: 13, lineHeight: 1.55, color: p.muted(0.55) }}><span style={{ fontWeight: 600, color: p.muted(0.75) }}>The situation: </span>{c.situation}</p>
                 </div>
                 <div style={{ padding: "20px 28px", borderBottom: `1px solid ${p.caseHeaderBorder}`, background: p.caseOldBg }}>
@@ -421,15 +425,15 @@ const LandingPage = () => {
       <section id="how-it-works" style={{ padding: "88px 20px", background: p.sectionBg, borderTop: `1px solid ${p.sectionBorder}`, borderBottom: `1px solid ${p.sectionBorder}` }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16 }}>How It Works</p>
-            <h2 style={{ fontSize: "clamp(26px,4vw,38px)", fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 20, lineHeight: 1.2 }}>Your entire outbound pipeline.<br />Four steps. Zero manual work.</h2>
-            <p style={{ fontSize: 15, color: p.muted(0.60), maxWidth: 480, margin: "0 auto" }}>Connecttr collapses a messy 5-tool stack into a single, cohesive workflow.</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: p.accent, marginBottom: 18 }}>How It Works</p>
+            <h2 style={{ fontSize: "clamp(30px,4vw,44px)", fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 20, lineHeight: 1.15 }}>Your entire outbound pipeline.<br />Four steps. Zero manual work.</h2>
+            <p style={{ fontSize: 17, color: p.muted(0.65), maxWidth: 520, margin: "0 auto" }}>Connecttr collapses a messy 5-tool stack into a single, cohesive workflow.</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 20 }}>
             {STEPS.map((s, i) => (
               <div key={i} style={{ borderRadius: 16, padding: "24px 24px 28px", background: p.card, border: `1px solid ${p.border}` }}>
                 <div style={{ fontSize: 36, fontWeight: 900, lineHeight: 1, marginBottom: 16, background: "linear-gradient(135deg,rgba(124,58,237,0.6),rgba(124,58,237,0.15))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{s.num}</div>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 8 }}>{s.title}</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 8 }}>{s.title}</h3>
                 <p style={{ fontSize: 13, lineHeight: 1.55, color: p.muted(0.55) }}>{s.body}</p>
               </div>
             ))}
@@ -441,21 +445,20 @@ const LandingPage = () => {
       <section id="features" style={{ padding: "88px 20px" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16 }}>The Platform</p>
-            <h2 style={{ fontSize: "clamp(26px,4vw,38px)", fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 20, lineHeight: 1.2 }}>The all-in-one command centre.</h2>
-            <p style={{ fontSize: 15, color: p.muted(0.60), maxWidth: 480, margin: "0 auto" }}>Every tool your outbound team needs, unified in a single hub.</p>
+            <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: p.accent, marginBottom: 18 }}>The Platform</p>
+            <h2 style={{ fontSize: "clamp(30px,4vw,44px)", fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 20, lineHeight: 1.15 }}>The all-in-one command centre.</h2>
+            <p style={{ fontSize: 17, color: p.muted(0.65), maxWidth: 500, margin: "0 auto" }}>Every tool your outbound team needs, unified in a single hub.</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 20 }}>
+          {/* 4-in-a-row on desktop, 2 on tablet, 1 on mobile */}
+          <div className="features-grid" style={{ display: "grid", gap: 18 }}>
             {FEATURES.map((f, i) => (
               <div key={i}
-                style={{ display: "flex", gap: 20, borderRadius: 16, padding: "24px 28px", background: p.card, border: `1px solid ${p.border}`, transition: "border-color 0.2s" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = p.borderHover; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = p.border; }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "rgba(124,58,237,0.18)", color: "#a78bfa" }}>{f.icon}</div>
-                <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: isDark ? "#fff" : p.fg, marginBottom: 8 }}>{f.title}</h3>
-                  <p style={{ fontSize: 13, lineHeight: 1.6, color: p.muted(0.58) }}>{f.body}</p>
-                </div>
+                style={{ borderRadius: 18, padding: "28px 24px", background: p.card, border: `1px solid ${p.border}`, boxShadow: p.cardShadow, transition: "border-color 0.2s, transform 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = p.borderHover; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = p.border; e.currentTarget.style.transform = "none"; }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: isDark ? "rgba(155,114,255,0.16)" : "rgba(124,58,237,0.09)", color: p.accent, marginBottom: 20 }}>{f.icon}</div>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 10 }}>{f.title}</h3>
+                <p style={{ fontSize: 14, lineHeight: 1.65, color: p.muted(0.62) }}>{f.body}</p>
               </div>
             ))}
           </div>
@@ -467,7 +470,7 @@ const LandingPage = () => {
         <div style={{ maxWidth: 860, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 24, textAlign: "center" }}>
           {[{ stat: "50%", label: "reduction in customer acquisition cost", src: "McKinsey" }, { stat: "70%", label: "of sales time reclaimed from manual research", src: "Salesforce" }, { stat: "3×", label: "more meetings booked vs. manual outreach", src: "Connecttr data" }].map((s, i) => (
             <div key={i}>
-              <div style={{ fontSize: 40, fontWeight: 900, color: isDark ? "#fff" : p.fg, marginBottom: 8 }}>{s.stat}</div>
+              <div style={{ fontSize: 40, fontWeight: 900, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 8 }}>{s.stat}</div>
               <div style={{ fontSize: 13, color: p.muted(0.65), marginBottom: 6 }}>{s.label}</div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(124,58,237,0.75)" }}>{s.src}</div>
             </div>
@@ -478,7 +481,7 @@ const LandingPage = () => {
       {/* ── Pricing ────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ padding: "88px 20px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16, textAlign: "center" }}>Pricing</p>
+          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: p.accent, marginBottom: 18, textAlign: "center" }}>Pricing</p>
           <PricingSection
             heading="Plans that Scale with You"
             description="Whether you're just starting out or growing fast, our flexible pricing has you covered — no hidden costs."
@@ -491,7 +494,7 @@ const LandingPage = () => {
       <section style={{ padding: "100px 20px", position: "relative", overflow: "hidden", borderTop: `1px solid ${p.sectionBorder}` }}>
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 60%, rgba(124,58,237,0.18) 0%, transparent 65%)", pointerEvents: "none" }} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
-          <h2 style={{ fontSize: "clamp(32px,5vw,52px)", fontWeight: 800, color: isDark ? "#fff" : p.fg, marginBottom: 24, lineHeight: 1.1 }}>
+          <h2 style={{ fontSize: "clamp(32px,5vw,52px)", fontWeight: 800, color: isDark ? "#f5f5f7" : "#1d1d1f", marginBottom: 24, lineHeight: 1.1 }}>
             Ready to take the friction out<br />of your growth?
           </h2>
           <p style={{ fontSize: 17, color: p.muted(0.62), marginBottom: 40, lineHeight: 1.6 }}>
@@ -521,7 +524,7 @@ const LandingPage = () => {
                 <div style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,58,237,0.20)", border: "1px solid rgba(124,58,237,0.40)" }}>
                   <img src="/clogo.png" alt={BRAND} style={{ width: 16, height: 16, objectFit: "contain" }} onError={e => { e.target.style.display = "none"; }} />
                 </div>
-                <span style={{ fontWeight: 700, fontSize: 14, color: isDark ? "#fff" : p.fg }}>{BRAND}</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: isDark ? "#f5f5f7" : "#1d1d1f" }}>{BRAND}</span>
               </div>
               <p style={{ fontSize: 13, lineHeight: 1.6, color: p.muted(0.45) }}>From Intent to Inbox.<br />The B2B outbound platform.</p>
             </div>
@@ -559,12 +562,16 @@ const LandingPage = () => {
       </footer>
 
       <style>{`
-        @media (max-width: 640px) {
-          .grid-footer { grid-template-columns: 1fr 1fr !important; }
-        }
-        @media (max-width: 400px) {
-          .grid-footer { grid-template-columns: 1fr !important; }
-        }
+        /* Features — 4 columns desktop, 2 tablet, 1 mobile */
+        .features-grid { grid-template-columns: repeat(4, 1fr); }
+        @media (max-width: 860px)  { .features-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px)  { .features-grid { grid-template-columns: 1fr; } }
+
+        /* Footer grid */
+        @media (max-width: 640px) { .grid-footer { grid-template-columns: 1fr 1fr !important; } }
+        @media (max-width: 400px) { .grid-footer { grid-template-columns: 1fr !important; } }
+
+        /* Nav responsive */
         .hidden { display: none; }
         @media (min-width: 768px) { .hidden { display: flex; } }
         .md\\:hidden { display: flex; }

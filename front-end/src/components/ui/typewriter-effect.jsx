@@ -48,32 +48,35 @@ export const TypewriterEffect = ({ words, className, cursorClassName }) => {
 export const TypewriterEffectSmooth = ({ words, className, cursorClassName }) => {
   const wordsArray = words.map((word) => ({ ...word, text: word.text.split("") }));
 
+  const renderWords = () =>
+    wordsArray.map((word, idx) => (
+      <span key={`word-${idx}`} className="inline-block">
+        {word.text.map((char, index) => (
+          <span key={`char-${index}`} className={cn(word.className)}>{char}</span>
+        ))}
+        {idx < wordsArray.length - 1 && <span>&nbsp;</span>}
+      </span>
+    ));
+
   return (
-    <div className={cn("flex items-center justify-center space-x-1", className)}>
-      <motion.div
-        className="overflow-hidden pb-1"
-        initial={{ width: "0%" }}
-        whileInView={{ width: "fit-content" }}
-        transition={{ duration: 2.5, ease: "linear", delay: 0.3 }}
-      >
-        <div className="font-bold whitespace-nowrap" style={{ fontSize: "clamp(42px,7vw,72px)", lineHeight: 1.08, letterSpacing: "-0.02em" }}>
-          {wordsArray.map((word, idx) => (
-            <div key={`word-${idx}`} className="inline-block">
-              {word.text.map((char, index) => (
-                <span key={`char-${index}`} className={cn(word.className)}>
-                  {char}
-                </span>
-              ))}
-              &nbsp;
-            </div>
-          ))}
-        </div>
-      </motion.div>
+    <div className={cn("flex items-center justify-center gap-1", className)}>
+      {/* Clip-reveal: expands from left, but text is on a single short line so it never overflows */}
+      <div className="relative overflow-hidden" style={{ display: "flex", alignItems: "center" }}>
+        <motion.div
+          initial={{ clipPath: "inset(0 100% 0 0)" }}
+          whileInView={{ clipPath: "inset(0 0% 0 0)" }}
+          transition={{ duration: 1.6, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.2 }}
+          className="font-bold whitespace-nowrap"
+          style={{ fontSize: "clamp(44px,7vw,76px)", lineHeight: 1.06, letterSpacing: "-0.025em" }}
+        >
+          {renderWords()}
+        </motion.div>
+      </div>
       <motion.span
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.8, repeat: Infinity, repeatType: "reverse" }}
-        className={cn("block rounded-sm w-[4px] h-10 sm:h-12 xl:h-16 bg-royal-amethyst", cursorClassName)}
+        transition={{ duration: 0.7, repeat: Infinity, repeatType: "reverse" }}
+        className={cn("block rounded-sm w-[3px] h-12 sm:h-14 xl:h-16 bg-royal-amethyst flex-shrink-0", cursorClassName)}
       />
     </div>
   );
