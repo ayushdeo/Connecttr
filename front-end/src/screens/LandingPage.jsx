@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import {
-  ArrowRight, Search, Mail, BarChart2, Brain,
+  ArrowRight, Search, BarChart2, Brain,
   Clock, Sun, Moon, Menu, X, Star,
   CheckCircle, Shield, Database, Zap,
 } from "lucide-react";
 import { BRAND } from "../brand";
+import { TypewriterEffectSmooth } from "../components/ui/typewriter-effect";
+import { PricingSection } from "../components/ui/pricing";
 
 // ─── Theme palette ────────────────────────────────────────────────────────────
 // All inline styles derive from `p` so the toggle works without a full CSS refactor.
@@ -117,6 +119,52 @@ const FEATURES = [
   { icon: <Shield size={22} />,   title: "Identity Enrichment",        body: "Deep identity resolution that uncovers valid email addresses, direct dials, and professional backgrounds instantly." },
   { icon: <Brain size={22} />,    title: "Contextual Email Generator", body: "An LLM-driven engine that reviews a prospect's public footprint to weave genuine personal hooks into every draft." },
   { icon: <BarChart2 size={22} />, title: "Campaign Analytics",        body: "Track delivery rates, opens, replies, and meetings booked. Absolute clarity on your pipeline ROI." },
+];
+
+const CONNECTTR_PLANS = [
+  {
+    name: "Starter",
+    info: "For individuals getting started",
+    isFree: true,
+    price: { monthly: 0, yearly: 0 },
+    features: [
+      { text: "50 enriched contacts / month" },
+      { text: "Basic intent monitoring" },
+      { text: "AI email drafts" },
+      { text: "Community support", tooltip: "Get answers on our Discord community" },
+    ],
+    btn: { text: "Get Started Free", href: "/login" },
+    highlighted: false,
+  },
+  {
+    name: "Growth",
+    info: "For sales teams scaling fast",
+    price: { monthly: 99, yearly: Math.round(99 * 12 * 0.88) },
+    features: [
+      { text: "1,500 enriched contacts / month" },
+      { text: "Advanced intent monitoring", tooltip: "Hiring signals, funding rounds, tech stack changes" },
+      { text: "CRM integrations" },
+      { text: "Campaign analytics" },
+      { text: "Priority support", tooltip: "24/7 chat support with our team" },
+    ],
+    btn: { text: "Start Free Trial", href: "/login" },
+    highlighted: true,
+  },
+  {
+    name: "Enterprise",
+    info: "For large organisations",
+    isCustom: true,
+    price: { monthly: 0, yearly: 0 },
+    features: [
+      { text: "Unlimited enrichment" },
+      { text: "Custom workflows" },
+      { text: "Advanced security controls" },
+      { text: "Dedicated account manager" },
+      { text: "Custom onboarding & SLA" },
+    ],
+    btn: { text: "Contact Sales", href: "/contact" },
+    highlighted: false,
+  },
 ];
 
 const FOOTER_LINKS = [
@@ -252,13 +300,17 @@ const LandingPage = () => {
             AI-Powered Outbound Platform
           </div>
 
-          <h1 style={{ fontSize: "clamp(42px,7vw,72px)", fontWeight: 800, lineHeight: 1.08, letterSpacing: "-0.02em", marginBottom: 24, color: isDark ? "#fff" : p.fg }}>
-            From Intent Signal{" "}
-            <br />
-            <span style={{ background: "linear-gradient(135deg,#c4b5fd 0%,#7c3aed 50%,#a78bfa 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              to Inbox.
-            </span>
-          </h1>
+          <TypewriterEffectSmooth
+            words={[
+              { text: "From",   className: isDark ? "text-white" : "text-[#1a0d2e]" },
+              { text: "Intent", className: isDark ? "text-white" : "text-[#1a0d2e]" },
+              { text: "Signal", className: isDark ? "text-white" : "text-[#1a0d2e]" },
+              { text: "to",     className: isDark ? "text-white" : "text-[#1a0d2e]" },
+              { text: "Inbox.", className: "text-violet-400" },
+            ]}
+            className="mb-8"
+            cursorClassName={isDark ? "bg-violet-400" : "bg-violet-600"}
+          />
 
           <p style={{ fontSize: 18, lineHeight: 1.65, maxWidth: 620, margin: "0 auto 40px", color: p.muted(0.72) }}>
             Connecttr takes your company brief, uncovers high-intent B2B prospects across the web, enriches their data, and drafts hyper-personalised outreach. Stop hunting for emails. Start closing.
@@ -425,56 +477,13 @@ const LandingPage = () => {
 
       {/* ── Pricing ────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ padding: "88px 20px" }}>
-        <div style={{ maxWidth: 860, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16 }}>Pricing</p>
-            <h2 style={{ fontSize: "clamp(26px,4vw,38px)", fontWeight: 700, color: isDark ? "#fff" : p.fg, lineHeight: 1.2 }}>Simple, transparent pricing.</h2>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))", gap: 24, maxWidth: 600, margin: "0 auto" }}>
-            {/* Starter */}
-            <div style={{ borderRadius: 20, padding: 32, background: p.pricingCardBg, border: `1px solid ${p.pricingCardBorder}` }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: p.muted(0.65), marginBottom: 4 }}>Starter</div>
-              <div style={{ fontSize: 40, fontWeight: 900, color: isDark ? "#fff" : p.fg, marginBottom: 4 }}>Free</div>
-              <div style={{ fontSize: 12, color: p.muted(0.45), marginBottom: 28 }}>No credit card required</div>
-              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {["1 active campaign", "50 leads / month", "Email enrichment", "AI email drafting"].map(item => (
-                  <li key={item} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: p.muted(0.70) }}>
-                    <CheckCircle size={14} style={{ color: "#a78bfa", flexShrink: 0 }} /> {item}
-                  </li>
-                ))}
-              </ul>
-              <button onClick={handleCTA}
-                style={{ width: "100%", padding: "12px", borderRadius: 12, fontSize: 14, fontWeight: 600, color: "#c4b5fd", background: "rgba(124,58,237,0.10)", border: "1px solid rgba(124,58,237,0.35)", cursor: "pointer", transition: "background 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(124,58,237,0.20)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(124,58,237,0.10)"; }}>
-                Get Started Free
-              </button>
-            </div>
-
-            {/* Growth */}
-            <div style={{ borderRadius: 20, padding: 32, position: "relative", overflow: "hidden", background: isDark ? "rgba(124,58,237,0.12)" : "rgba(124,58,237,0.07)", border: "1px solid rgba(124,58,237,0.45)", boxShadow: "0 0 40px rgba(124,58,237,0.15)" }}>
-              <span style={{ position: "absolute", top: 16, right: 16, fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 999, background: "rgba(124,58,237,0.30)", color: "#c4b5fd", border: "1px solid rgba(124,58,237,0.50)" }}>Most Popular</span>
-              <div style={{ fontSize: 13, fontWeight: 600, color: p.muted(0.65), marginBottom: 4 }}>Growth</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, marginBottom: 4 }}>
-                <span style={{ fontSize: 40, fontWeight: 900, color: isDark ? "#fff" : p.fg }}>$99</span>
-                <span style={{ fontSize: 14, color: p.muted(0.55), marginBottom: 8 }}>/mo</span>
-              </div>
-              <div style={{ fontSize: 12, color: p.muted(0.45), marginBottom: 28 }}>Billed monthly</div>
-              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {["Unlimited campaigns", "1,500 leads / month", "CRM integrations", "Campaign analytics", "Priority support"].map(item => (
-                  <li key={item} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: p.muted(0.75) }}>
-                    <CheckCircle size={14} style={{ color: "#a78bfa", flexShrink: 0 }} /> {item}
-                  </li>
-                ))}
-              </ul>
-              <button onClick={handleCTA}
-                style={{ width: "100%", padding: "12px", borderRadius: 12, fontSize: 14, fontWeight: 600, color: "#fff", background: "#7c3aed", border: "none", cursor: "pointer", boxShadow: "0 0 20px rgba(124,58,237,0.40)", transition: "background 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#6d28d9"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#7c3aed"; }}>
-                Start Free Trial
-              </button>
-            </div>
-          </div>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#a78bfa", marginBottom: 16, textAlign: "center" }}>Pricing</p>
+          <PricingSection
+            heading="Plans that Scale with You"
+            description="Whether you're just starting out or growing fast, our flexible pricing has you covered — no hidden costs."
+            plans={CONNECTTR_PLANS}
+          />
         </div>
       </section>
 
