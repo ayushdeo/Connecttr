@@ -204,7 +204,7 @@ const StepCard = ({ step, title, body, tag, isLast }) => (
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const LandingPage = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -217,7 +217,11 @@ const LandingPage = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const handleCTA = () => navigate(user ? "/dashboard" : "/login");
+  // Wait for auth check before deciding where to send the CTA click
+  const handleCTA = () => {
+    if (loading) return;
+    navigate(user ? "/dashboard" : "/login");
+  };
 
   const scrollTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });

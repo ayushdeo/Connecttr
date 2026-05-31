@@ -3,9 +3,7 @@ import { API_BASE_URL } from '../config';
 
 const AuthContext = createContext();
 
-export const useAuth = () => {
-    return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -15,34 +13,26 @@ export const AuthProvider = ({ children }) => {
         try {
             const res = await fetch(`${API_BASE_URL}/auth/me`, {
                 headers: { 'Accept': 'application/json' },
-                credentials: 'include', // Important for cookies
+                credentials: 'include',
             });
             if (res.ok) {
                 const userData = await res.json();
-                console.log("[AuthContext] /auth/me raw response:", userData);
                 const flattenedUser = userData.user ? userData.user : userData;
-                console.log("[AuthContext] Flattened user set to state:", flattenedUser);
                 setUser(flattenedUser);
             } else {
-                console.log("[AuthContext] /auth/me failed. Status:", res.status);
                 setUser(null);
             }
         } catch (e) {
-            console.error("Session check failed", e);
             setUser(null);
         } finally {
             setLoading(false);
         }
     };
 
-    // Initial check
-    useEffect(() => {
-        checkUser();
-    }, []);
+    useEffect(() => { checkUser(); }, []);
 
     const login = async (backendResponse) => {
-        // backendResponse might contain user info, or we just re-fetch
-        if (backendResponse && backendResponse.user) {
+        if (backendResponse?.user) {
             setUser(backendResponse.user);
         } else {
             await checkUser();
@@ -51,24 +41,16 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await fetch(`${API_BASE_URL}/auth/logout`, {
-                method: "POST",
-                credentials: 'include'
-            });
-        } catch (e) {
-            console.error("Logout failed", e);
-        }
+            await fetch(`${API_BASE_URL}/auth/logout`, { method: "POST", credentials: 'include' });
+        } catch (_) {}
         setUser(null);
     };
 
-    // Helper to get headers for API calls (Modified for Cookies: No headers needed typically)
-    // But we might want to ensure 'credentials: include' is used.
-    // Consumers should manually addcredentials: 'include'. 
-    // We can provide a wrapper if we want, but for now let's just expose user.
-
+    // Render children immediately — public pages (landing, login) must not block on auth.
+    // ProtectedRoute handles its own loading state for app routes.
     return (
         <AuthContext.Provider value={{ user, login, logout, checkUser, loading }}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };
