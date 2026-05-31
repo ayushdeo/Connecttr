@@ -36,13 +36,13 @@ export default function DashboardHome({ onNavigate }) {
     <div className="flex flex-col p-8 gap-8 min-h-screen text-mist font-sans max-w-7xl mx-auto w-full">
 
       {/* Hero Card */}
-      <div className="bg-gradient-to-r from-midnight-plum to-royal-amethyst p-10 rounded-3xl shadow-2xl relative overflow-hidden border border-white/5">
+      <div className="bg-gradient-to-r from-midnight-plum to-royal-amethyst p-10 rounded-3xl shadow-2xl relative overflow-hidden border border-overlay/5">
         <div className="relative z-10">
           <h1 className="text-4xl font-bold text-white mb-2">Welcome Back!</h1>
           <p className="text-lilac-mist text-lg">See intent. Say hello.</p>
         </div>
         {/* Subtle decorative circle */}
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="absolute -top-20 -right-20 w-64 h-64 bg-overlay/5 rounded-full blur-3xl"></div>
       </div>
 
       {/* Stat Cards */}
@@ -64,7 +64,7 @@ export default function DashboardHome({ onNavigate }) {
             </button>
             <button
               onClick={() => onNavigate("campaigns")}
-              className="border border-white/20 text-lilac-mist px-8 py-3 rounded-xl hover:bg-white/5 hover:text-white transition-all duration-200">
+              className="border border-overlay/20 text-lilac-mist px-8 py-3 rounded-xl hover:bg-overlay/5 hover:text-mist transition-all duration-200">
               Manage Campaigns
             </button>
           </>
@@ -75,8 +75,8 @@ export default function DashboardHome({ onNavigate }) {
 }
 
 const MetricCard = ({ label, value }) => (
-  <div className="bg-slate rounded-2xl p-6 shadow-xl border border-white/5 hover:border-royal-amethyst/30 transition-colors duration-300">
+  <div className="theme-surface bg-slate rounded-2xl p-6 shadow-xl border border-overlay/5 hover:border-royal-amethyst/30 transition-colors duration-300">
     <p className="text-xs font-bold text-soft-violet uppercase tracking-wider mb-2">{label}</p>
-    <p className="text-4xl font-semibold text-white">{value}</p>
+    <p className="text-4xl font-semibold text-mist">{value}</p>
   </div>
 );

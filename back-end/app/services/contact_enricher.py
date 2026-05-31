@@ -1,5 +1,7 @@
 # app/services/contact_enricher.py
-import os, re, socket, requests
+import os, re, socket, time, logging, requests
+
+log = logging.getLogger("nexus")
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
@@ -174,7 +176,12 @@ def enrich_leads_with_email(leads: list, max_to_enrich: int = 50):
         yield {"type": "result", "leads": leads}
         return
 
+    t0 = time.time()
     enriched = 0
+    hunter_hits = 0
+    scrape_hits = 0
+    synth_hits = 0
+
     for i, lead in enumerate(leads):
         if enriched >= max_to_enrich:
             break
@@ -205,14 +212,20 @@ def enrich_leads_with_email(leads: list, max_to_enrich: int = 50):
         # 1. Hunter.io — most reliable when we have a real company domain
         if company_domain and not _is_social_url(f"https://{company_domain}"):
             email = _hunter_lookup(first, last, company_domain)
+            if email:
+                hunter_hits += 1
 
         # 2. Scrape portfolio URL (photographers/freelancers share their site in posts)
         if not email and portfolio:
             email = _scrape_for_email(portfolio)
+            if email:
+                scrape_hits += 1
 
         # 3. Scrape source URL if it's not a social wall
         if not email and not _is_social_url(src):
             email = _scrape_for_email(src)
+            if email:
+                scrape_hits += 1
 
         # 4. Synthesise from name + company domain (MX-validated)
         if not email:
@@ -221,8 +234,9 @@ def enrich_leads_with_email(leads: list, max_to_enrich: int = 50):
                 domain = company_domain.replace("www.", "").strip()
                 if _has_mx_record(domain):
                     email = cands[0]
-                    lead["email_candidates"] = cands  # store all variants for bounce fallback
+                    lead["email_candidates"] = cands
                     lead["status"] = "Guessed"
+                    synth_hits += 1
 
         if email:
             lead["email"] = email
@@ -232,4 +246,9 @@ def enrich_leads_with_email(leads: list, max_to_enrich: int = 50):
         else:
             lead["status"] = "Needs Email"
 
+    needs_email = sum(1 for l in leads if l.get("status") == "Needs Email")
+    log.info(
+        "[enrich] complete total=%d hunter=%d scrape=%d synthesized=%d needs_email=%d duration_s=%.1f",
+        len(leads), hunter_hits, scrape_hits, synth_hits, needs_email, time.time() - t0,
+    )
     yield {"type": "result", "leads": leads}

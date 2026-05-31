@@ -5,7 +5,7 @@
 # Free tier (gemini-2.0-flash): 15 RPM · 1M TPM · 1500 RPD
 # Get API key: https://aistudio.google.com/app/apikey
 import os, re, json, requests
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
@@ -14,7 +14,11 @@ class LLMConfigError(RuntimeError): ...
 class LLMHTTPError(RuntimeError): ...
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=8),
+    retry=retry_if_exception_type(LLMHTTPError),  # never retry config/auth errors
+)
 def call_llm(system: str, user: str, max_tokens: int = 1000, temperature: float = 0.0) -> str:
     """Call Gemini via its OpenAI-compatible /chat/completions endpoint.
     Retries up to 3× with exponential backoff on transient errors."""
@@ -44,10 +48,21 @@ def call_llm(system: str, user: str, max_tokens: int = 1000, temperature: float 
         timeout=timeout,
     )
 
+    if r.status_code in (401, 403):
+        # Auth failures are permanent — don't retry, fail fast
+        raise LLMConfigError(f"Gemini auth failed (HTTP {r.status_code}): check GOOGLE_AI_API_KEY")
+
+    if r.status_code == 404:
+        # Model not found — permanent config error, don't retry
+        raise LLMConfigError(f"Gemini model not found: check GOOGLE_AI_MODEL. {r.text[:200]}")
+
     if r.status_code != 200:
         raise LLMHTTPError(f"Gemini HTTP {r.status_code}: {r.text[:400]}")
 
-    return r.json()["choices"][0]["message"]["content"].strip()
+    content = r.json()["choices"][0]["message"].get("content", "")
+    if not content:
+        raise LLMHTTPError("Gemini returned empty content — max_tokens may be too low for thinking budget")
+    return content.strip()
 
 
 def extract_json(text: str) -> dict:

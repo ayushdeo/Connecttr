@@ -36,12 +36,12 @@ const StartNewCampaign = ({ onNext }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 animate-in fade-in zoom-in duration-300">
-      <div className="bg-slate rounded-2xl border border-white/5 p-8 max-w-md w-full text-center shadow-2xl backdrop-blur-sm">
-        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10">
+      <div className="theme-surface bg-slate rounded-2xl border border-overlay/5 p-8 max-w-md w-full text-center shadow-2xl backdrop-blur-sm">
+        <div className="w-12 h-12 bg-overlay/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-overlay/10">
           <Globe className="text-royal-amethyst" size={24} />
         </div>
 
-        <h2 className="text-2xl font-bold text-white mb-2">Let's Get Started</h2>
+        <h2 className="text-2xl font-bold text-mist mb-2">Let's Get Started</h2>
         <p className="text-sm text-soft-violet mb-8">Enter your website URL to help our AI learn about your company and products.</p>
 
         <div className="relative mb-4">
@@ -50,7 +50,7 @@ const StartNewCampaign = ({ onNext }) => {
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
             placeholder="e.g. https://www.yourcompany.com"
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-royal-amethyst focus:ring-1 focus:ring-royal-amethyst transition-all"
+            className="w-full px-4 py-3 rounded-xl bg-overlay/5 border border-overlay/10 text-mist placeholder-overlay/20 focus:outline-none focus:border-royal-amethyst focus:ring-1 focus:ring-royal-amethyst transition-all"
           />
         </div>
 
@@ -71,11 +71,11 @@ const StartNewCampaign = ({ onNext }) => {
           )}
         </button>
 
-        <div className="mt-6 pt-6 border-t border-white/5 text-sm text-soft-violet">
+        <div className="mt-6 pt-6 border-t border-overlay/5 text-sm text-soft-violet">
           <span>Don't have a website?</span>{" "}
           <button
             onClick={() => onNext?.({ step: "fallback", reason: "no_website" })}
-            className="text-white hover:text-lilac-mist underline decoration-white/30 hover:decoration-lilac-mist underline-offset-4 transition-all font-medium ml-1"
+            className="text-mist hover:text-lilac-mist underline decoration-overlay/30 hover:decoration-lilac-mist underline-offset-4 transition-all font-medium ml-1"
           >
             Skip for now
           </button>

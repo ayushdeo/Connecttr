@@ -9,6 +9,7 @@ from pydantic import BaseModel, HttpUrl
 
 from app.services.web_extractor import extract_main_text
 from app.services.company_analyzer import analyze_company_brief
+from app.services.llm_client import LLMConfigError, LLMHTTPError
 from app.services.lead_discovery import discover_from_brief
 from app.services.contact_enricher import enrich_leads_with_email
 from app.services.email_service import upsert_leads_to_hub
@@ -173,7 +174,14 @@ def analyze(
         raise HTTPException(status_code=400, detail="Provide a website URL or a text description")
 
     basis = text_source or input.prompt or ""
-    brief = analyze_company_brief(basis, website=str(input.website) if input.website else None)
+    try:
+        brief = analyze_company_brief(basis, website=str(input.website) if input.website else None)
+    except LLMConfigError as e:
+        raise HTTPException(status_code=502, detail=f"LLM config error: {e}")
+    except LLMHTTPError as e:
+        raise HTTPException(status_code=502, detail=f"LLM service error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Brief analysis failed: {e}")
 
     validation_passed = brief.pop("_validation_passed", True)
     validation_reason = brief.pop("_validation_reason", "")

@@ -1,5 +1,5 @@
 # app/services/lead_discovery.py
-import os, re, uuid, urllib.parse, requests, logging
+import os, re, uuid, time, urllib.parse, requests, logging
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
@@ -267,6 +267,9 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 8):
 
     leads, seen = [], set()
     total_q = len(queries)
+    t0 = time.time()
+    raw_total = 0
+    candidates_total = 0
 
     for i, q in enumerate(queries):
         pct = int(100 * (i / max(1, total_q)))
@@ -281,6 +284,8 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 8):
             h for h in batch
             if h["url"] not in seen and not _exclude(h, client_domain, exclude_domains, brief)
         ]
+        raw_total += len(batch)
+        candidates_total += len(candidates)
         log.info(f"[discover] query={q[:60]!r} raw={len(batch)} candidates={len(candidates)}")
         yield {
             "type": "progress",
@@ -313,4 +318,8 @@ def discover_from_brief(campaign_id: str, brief: dict, per_query: int = 8):
             })
             seen.add(hit["url"])
 
+    log.info(
+        "[discover] complete campaign_id=%s queries=%d raw=%d candidates=%d leads=%d duration_s=%.1f",
+        campaign_id, total_q, raw_total, candidates_total, len(leads), time.time() - t0,
+    )
     yield {"type": "result", "leads": leads}
