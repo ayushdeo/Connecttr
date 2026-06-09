@@ -1,8 +1,20 @@
 # app/main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import os
+import os, logging, sys
 from dotenv import load_dotenv
+
+# ── Logging: emit to stdout so Render captures every line ──────────────────
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    force=True,
+)
+# Quiet noisy third-party loggers; keep our "nexus" logger at DEBUG
+for _noisy in ("urllib3", "httpcore", "httpx", "botocore", "boto3"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+logging.getLogger("nexus").setLevel(logging.DEBUG)
 
 # Explicitly load the .env file
 env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')

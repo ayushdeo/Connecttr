@@ -64,7 +64,9 @@ def _domain(u: str) -> str:
 def _google_results(query: str, max_results: int = 15):
     """Fetch Google results via scrape.do with multi-selector fallback."""
     token = os.getenv("SCRAPEDO_TOKEN")
+    log.debug("[google] SCRAPEDO_TOKEN present=%s", bool(token))
     if not token:
+        log.error("[google] SCRAPEDO_TOKEN is missing from environment — cannot scrape Google")
         raise RuntimeError("SCRAPEDO_TOKEN missing")
 
     google_url = (
@@ -74,23 +76,35 @@ def _google_results(query: str, max_results: int = 15):
     )
     encoded = urllib.parse.quote(google_url, safe="")
     url = f"http://api.scrape.do/?token={token}&url={encoded}&render=true"
+    log.debug("[google] query=%r", query[:100])
+    log.debug("[google] request url=%s", url[:120])
 
     r = requests.get(url, timeout=40)
+    log.debug("[google] scrape.do status=%d html_len=%d", r.status_code, len(r.text))
+    if not r.ok:
+        log.error("[google] scrape.do non-OK response: %s", r.text[:300])
     r.raise_for_status()
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Google periodically renames result container classes — try all known variants
-    cards = (
-        soup.select("div.tF2Cxc")
-        or soup.select("div.g")
-        or soup.select("div[data-sokoban-container]")
-        or soup.select("div.Gx5Zad")
-        or soup.select("div.MjjYud")
-    )
+    # Try each known Google result selector and log which one matched
+    selector_tries = [
+        ("div.tF2Cxc",               soup.select("div.tF2Cxc")),
+        ("div.g",                     soup.select("div.g")),
+        ("div[data-sokoban-container]", soup.select("div[data-sokoban-container]")),
+        ("div.Gx5Zad",               soup.select("div.Gx5Zad")),
+        ("div.MjjYud",               soup.select("div.MjjYud")),
+    ]
+    cards = []
+    for sel, results in selector_tries:
+        log.debug("[google] selector %r → %d cards", sel, len(results))
+        if results and not cards:
+            cards = results
+            log.debug("[google] using selector %r", sel)
 
     if not cards:
-        log.warning(f"[discover] zero result cards — selector may be stale. query={query[:80]!r}")
+        log.warning("[google] zero result cards — selector may be stale. query=%r", query[:80])
+        log.debug("[google] HTML snippet (first 1000 chars): %s", r.text[:1000])
 
     count = 0
     for card in cards:
