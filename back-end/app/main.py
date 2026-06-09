@@ -12,7 +12,7 @@ logging.basicConfig(
     force=True,
 )
 # Quiet noisy third-party loggers; keep our "nexus" logger at DEBUG
-for _noisy in ("urllib3", "httpcore", "httpx", "botocore", "boto3"):
+for _noisy in ("urllib3", "httpcore", "httpx", "botocore", "boto3", "pymongo", "pymongo.topology", "pymongo.connection", "pymongo.serverMonitor"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 logging.getLogger("nexus").setLevel(logging.DEBUG)
 
