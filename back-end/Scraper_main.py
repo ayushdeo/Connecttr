@@ -2,10 +2,14 @@ import requests
 import urllib.parse
 from bs4 import BeautifulSoup
 import os
+from dotenv import load_dotenv
 from app.db import get_leads_collection  # Updated import
 
+load_dotenv("apiKey.env")
+
 # ------------------- CONFIG -------------------
-token = "REDACTED_ROTATED_TOKEN"
+# Scrape.do API token — set SCRAPEDO_TOKEN in apiKey.env (gitignored), never hardcode.
+token = os.getenv("SCRAPEDO_TOKEN", "")
 
 search_query = (
     '('
