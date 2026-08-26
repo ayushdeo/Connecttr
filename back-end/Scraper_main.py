@@ -2,14 +2,14 @@ import requests
 import urllib.parse
 from bs4 import BeautifulSoup
 import os
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 from app.db import get_leads_collection  # Updated import
 
+load_dotenv("apiKey.env")
+
 # ------------------- CONFIG -------------------
-load_dotenv(find_dotenv(filename="apiKey.env", usecwd=True))
-token = os.getenv("SCRAPEDO_TOKEN")
-if not token:
-    raise RuntimeError("SCRAPEDO_TOKEN missing — set it in back-end/apiKey.env or the environment")
+# Scrape.do API token — set SCRAPEDO_TOKEN in apiKey.env (gitignored), never hardcode.
+token = os.getenv("SCRAPEDO_TOKEN", "")
 
 search_query = (
     '('
