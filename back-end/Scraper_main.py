@@ -2,10 +2,14 @@ import requests
 import urllib.parse
 from bs4 import BeautifulSoup
 import os
+from dotenv import load_dotenv, find_dotenv
 from app.db import get_leads_collection  # Updated import
 
 # ------------------- CONFIG -------------------
-token = "REDACTED_ROTATED_TOKEN"
+load_dotenv(find_dotenv(filename="apiKey.env", usecwd=True))
+token = os.getenv("SCRAPEDO_TOKEN")
+if not token:
+    raise RuntimeError("SCRAPEDO_TOKEN missing — set it in back-end/apiKey.env or the environment")
 
 search_query = (
     '('
